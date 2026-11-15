@@ -1,0 +1,1672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>What goes with a good grade?</title>
+<!--
+  Student grades explorer — Information Visualisation prototype (iteration 2)
+  Authors: Folashade Ogunajo and Vanessa Ogoru — DETI, University of Aveiro, 2026/2027
+  Data: P. Cortez and A. Silva (2008), "Using Data Mining to Predict Secondary School Student Performance",
+        UCI Machine Learning Repository, https://archive.ics.uci.edu/dataset/320/student+performance
+  Libraries: d3.js v7.9.0 (https://d3js.org, ISC licence), loaded from cdnjs.
+  Font: Atkinson Hyperlegible (Braille Institute, SIL Open Font Licence), from Google Fonts.
+  The data (student-mat.csv, student-por.csv) is embedded below so this file runs on its own.
+  To load the CSV files instead, replace loadEmbedded() with d3.dsv(";", "data/student-mat.csv").
+  AI use: first version generated with Claude (Anthropic); disclose this in the final presentation.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root{
+  --bg:#D9E0EA; --surface:#FFFFFF; --ink:#0F1D35; --muted:#33445C; --rule:#A3B1C4; --hl:#CCDBF0;
+  --pass:#0060E6; --fail:#FF6A00; --none:#6F7B8C;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E141C; --surface:#1A2330; --ink:#F2F5F9; --muted:#C2CCD9; --rule:#465569; --hl:#2B3B52;
+    --pass:#3D8CFF; --fail:#FF8A2B; --none:#8994A3; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E141C; --surface:#1A2330; --ink:#F2F5F9; --muted:#C2CCD9; --rule:#465569; --hl:#2B3B52;
+  --pass:#3D8CFF; --fail:#FF8A2B; --none:#8994A3; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 70px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 "Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+.intro{padding:44px 0 22px}
+h1{font-size:clamp(2rem,4.5vw,3rem);line-height:1.08;margin:0 0 14px;letter-spacing:-0.015em}
+.lede{max-width:64ch;margin:0;color:var(--muted);font-size:1.1rem}
+.byline{margin:0 0 14px;font-size:1.05rem}
+.byline strong{font-weight:700}
+.key{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:16px;font-size:.95rem}
+.key span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:14px;height:14px;border-radius:50%;display:inline-block}
+
+.bar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--rule);
+  padding-top:env(safe-area-inset-top,0px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--bg)}
+.bar .wrap{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding-top:10px;padding-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--ink);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);padding:5px 14px;font:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+label.ctl{display:inline-flex;align-items:center;gap:6px;font-size:.95rem}
+select{font:inherit;font-size:.95rem;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:3px 6px}
+input[type=checkbox]{accent-color:var(--ink);width:16px;height:16px}
+.status{flex:1 1 320px;font-size:.95rem;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;justify-content:flex-end}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--surface);border-radius:999px;padding:3px 4px 3px 12px}
+.chip button{border:0;border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:.85rem;padding:1px 10px;cursor:pointer}
+
+.grid{display:grid;gap:20px;margin:20px 0}
+.g-a{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.g-c{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+@media (max-width:980px){.g-a,.g-c{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1.5px solid var(--rule);border-radius:6px;padding:18px 20px 14px;min-width:0}
+.panel h2{font-size:1.28rem;line-height:1.25;margin:0 0 6px}
+.hint{color:var(--muted);margin:0 0 12px;max-width:62ch;font-size:.95rem}
+.phead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:flex-start}
+.pickers{display:flex;flex-wrap:wrap;gap:6px 10px;margin:0 0 10px}
+.linkbtn{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;font:inherit;font-size:.92rem;cursor:pointer}
+.chart{width:100%;overflow-x:auto}
+svg{display:block}
+svg text{fill:var(--ink);font-family:inherit;font-size:14.5px}
+.axis text{fill:var(--muted);font-size:13.5px}
+.axis path,.axis line{stroke:var(--rule);stroke-width:1.2}
+.muted{fill:var(--muted)!important}
+.click{cursor:pointer}
+g[tabindex]:focus{outline:none}
+g[tabindex]:focus-visible rect.hit{stroke:var(--ink);stroke-width:2}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.empty{color:var(--muted);padding:30px 0}
+
+.card .who{color:var(--muted);margin:0 0 10px}
+.grades{display:flex;gap:18px;margin:4px 0 14px}
+.grades div{display:flex;flex-direction:column}
+.grades b{font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
+.grades small{color:var(--muted)}
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:.95rem}
+dl.facts dt{color:var(--muted)}
+dl.facts dd{margin:0}
+
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--surface);padding:8px 11px;border-radius:4px;
+  font-size:.88rem;line-height:1.4;max-width:290px;opacity:0;z-index:50}
+footer{color:var(--muted);font-size:.93rem;padding:10px 0 50px}
+footer h2{color:var(--ink);font-size:1.1rem;margin:0 0 6px}
+footer p{max-width:72ch;margin:0 0 10px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="wrap intro">
+  <h1>What goes with a good grade?</h1>
+  <p class="byline">By <strong>Folashade Ogunajo</strong> and <strong>Vanessa Ogoru</strong>, Information Visualisation 2026/2027, DETI, University of Aveiro</p>
+  <p class="lede">Final grades of secondary-school students at two schools in Portugal, next to their study habits, family and social life. Grades run from 0 to 20, and 10 is a pass. Start with the ranking, choose a factor to look closer, then follow groups of students across the charts.</p>
+  <div class="key" aria-label="Colour key">
+    <span><i class="sw" style="background:var(--pass)"></i>Passed (10 or more)</span>
+    <span><i class="sw" style="background:var(--fail)"></i>Failed (under 10)</span>
+    <span id="key-none"><i class="sw" style="background:var(--none)"></i>No final grade (did not sit the exam)</span>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="wrap">
+    <div class="seg" role="group" aria-label="Subject">
+      <button type="button" data-subj="mat" aria-pressed="true">Maths</button>
+      <button type="button" data-subj="por" aria-pressed="false">Portuguese</button>
+    </div>
+    <label class="ctl">School
+      <select id="f-school"><option value="all">Both</option><option value="GP">Gabriel Pereira</option><option value="MS">Mousinho da Silveira</option></select>
+    </label>
+    <label class="ctl">Sex
+      <select id="f-sex"><option value="all">All</option><option value="F">Female</option><option value="M">Male</option></select>
+    </label>
+    <label class="ctl"><input type="checkbox" id="f-zero"> Include students with no final grade</label>
+    <div class="status" id="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="grid g-a">
+    <section class="panel">
+      <h2>Which circumstances go with the biggest grade gaps?</h2>
+      <p class="hint">Each row is one factor. Circles are the average final grade of each group within it (bigger circle, more students). The longer the line, the bigger the gap. Choose a row to look closer.</p>
+      <div class="chart" id="rank"></div>
+      <button type="button" class="linkbtn" id="rank-more"></button>
+    </section>
+
+    <section class="panel">
+      <div class="phead">
+        <h2 id="detail-title">How are grades spread?</h2>
+      </div>
+      <p class="hint">Every dot is one student, placed at their final grade. The small triangle marks each group’s median. Choose a group’s name to select those students in every chart; point at a dot to see that student.</p>
+      <div class="chart" id="detail"></div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Which combinations lead to failing?</h2>
+      <p class="hint">Students flow from left to right through three factors to their final result. Band width is the number of students; colour is how they ended up. Choose a block or a band to select those students.</p>
+      <div class="pickers" id="pickers"></div>
+      <div class="chart" id="psets"></div>
+    </section>
+  </div>
+
+  <div class="grid g-c">
+    <section class="panel">
+      <h2>Do the first terms predict the final grade?</h2>
+      <p class="hint">Each line is a path from term 1 to term 2 to the final grade; thicker lines are paths shared by more students. Drag along any axis to select students in that grade range.</p>
+      <div class="chart" id="journey"></div>
+    </section>
+    <section class="panel card" id="card" aria-live="polite"></section>
+  </div>
+</main>
+
+<footer class="wrap">
+  <h2>About the data</h2>
+  <p>Survey and school records of 395 maths students and 649 Portuguese-language students from Gabriel Pereira and Mousinho da Silveira secondary schools, school year 2005–2006. Collected by P. Cortez and A. Silva (2008) and published in the UCI Machine Learning Repository as “Student Performance”.</p>
+  <p>Students with a final grade of 0 almost all had passing or near-passing grades during the year, so they most likely did not sit the final exam. They are hidden by default because they would drag group averages down. The charts show associations, not causes: a factor that goes with lower grades does not by itself make grades lower.</p>
+  <p>Built with d3.js v7.</p>
+  <h2>Project team</h2>
+  <p>Folashade Ogunajo and Vanessa Ogoru, Information Visualisation 2026/2027, Departamento de Eletrónica, Telecomunicações e Informática, University of Aveiro.</p>
+</footer>
+
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script type="text/plain" id="data-mat">school;sex;age;address;famsize;Pstatus;Medu;Fedu;Mjob;Fjob;reason;guardian;traveltime;studytime;failures;schoolsup;famsup;paid;activities;nursery;higher;internet;romantic;famrel;freetime;goout;Dalc;Walc;health;absences;G1;G2;G3
+"GP";"F";18;"U";"GT3";"A";4;4;"at_home";"teacher";"course";"mother";2;2;0;"yes";"no";"no";"no";"yes";"yes";"no";"no";4;3;4;1;1;3;6;"5";"6";6
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"other";"course";"father";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;3;3;1;1;3;4;"5";"5";6
+"GP";"F";15;"U";"LE3";"T";1;1;"at_home";"other";"other";"mother";1;2;3;"yes";"no";"yes";"no";"yes";"yes";"yes";"no";4;3;2;2;3;3;10;"7";"8";10
+"GP";"F";15;"U";"GT3";"T";4;2;"health";"services";"home";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";3;2;2;1;1;5;2;"15";"14";15
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"other";"home";"father";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";4;3;2;1;2;5;4;"6";"10";10
+"GP";"M";16;"U";"LE3";"T";4;3;"services";"other";"reputation";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;4;2;1;2;5;10;"15";"15";15
+"GP";"M";16;"U";"LE3";"T";2;2;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;1;3;0;"12";"12";11
+"GP";"F";17;"U";"GT3";"A";4;4;"other";"teacher";"home";"mother";2;2;0;"yes";"yes";"no";"no";"yes";"yes";"no";"no";4;1;4;1;1;1;6;"6";"5";6
+"GP";"M";15;"U";"LE3";"A";3;2;"services";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;2;2;1;1;1;0;"16";"18";19
+"GP";"M";15;"U";"GT3";"T";3;4;"other";"other";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;5;1;1;1;5;0;"14";"15";15
+"GP";"F";15;"U";"GT3";"T";4;4;"teacher";"health";"reputation";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";3;3;3;1;2;2;0;"10";"8";9
+"GP";"F";15;"U";"GT3";"T";2;1;"services";"other";"reputation";"father";3;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;2;2;1;1;4;4;"10";"12";12
+"GP";"M";15;"U";"LE3";"T";4;4;"health";"services";"course";"father";1;1;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;1;3;5;2;"14";"14";14
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"other";"course";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";5;4;3;1;2;3;2;"10";"10";11
+"GP";"M";15;"U";"GT3";"A";2;2;"other";"other";"home";"other";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;5;2;1;1;3;0;"14";"16";16
+"GP";"F";16;"U";"GT3";"T";4;4;"health";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;2;2;4;"14";"14";14
+"GP";"F";16;"U";"GT3";"T";4;4;"services";"services";"reputation";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;2;3;1;2;2;6;"13";"14";14
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"other";"reputation";"mother";3;2;0;"yes";"yes";"no";"yes";"yes";"yes";"no";"no";5;3;2;1;1;4;4;"8";"10";10
+"GP";"M";17;"U";"GT3";"T";3;2;"services";"services";"course";"mother";1;1;3;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;5;5;2;4;5;16;"6";"5";5
+"GP";"M";16;"U";"LE3";"T";4;3;"health";"other";"home";"father";1;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";3;1;3;1;3;5;4;"8";"10";10
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"other";"reputation";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;1;1;1;1;0;"13";"14";15
+"GP";"M";15;"U";"GT3";"T";4;4;"health";"health";"other";"father";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";5;4;2;1;1;5;0;"12";"15";15
+"GP";"M";16;"U";"LE3";"T";4;2;"teacher";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;5;1;1;3;5;2;"15";"15";16
+"GP";"M";16;"U";"LE3";"T";2;2;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;4;2;4;5;0;"13";"13";12
+"GP";"F";15;"R";"GT3";"T";2;4;"services";"health";"course";"mother";1;3;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;2;"10";"9";8
+"GP";"F";16;"U";"GT3";"T";2;2;"services";"services";"home";"mother";1;1;2;"no";"yes";"yes";"no";"no";"yes";"yes";"no";1;2;2;1;3;5;14;"6";"9";8
+"GP";"M";15;"U";"GT3";"T";2;2;"other";"other";"home";"mother";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;2;2;1;2;5;2;"12";"12";11
+"GP";"M";15;"U";"GT3";"T";4;2;"health";"services";"other";"mother";1;1;0;"no";"no";"yes";"no";"yes";"yes";"yes";"no";2;2;4;2;4;1;4;"15";"16";15
+"GP";"M";16;"U";"LE3";"A";3;4;"services";"other";"home";"mother";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;5;4;"11";"11";11
+"GP";"M";16;"U";"GT3";"T";4;4;"teacher";"teacher";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;4;5;5;5;5;16;"10";"12";11
+"GP";"M";15;"U";"GT3";"T";4;4;"health";"services";"home";"mother";1;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";5;4;2;3;4;5;0;"9";"11";12
+"GP";"M";15;"U";"GT3";"T";4;4;"services";"services";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;1;1;1;5;0;"17";"16";17
+"GP";"M";15;"R";"GT3";"T";4;3;"teacher";"at_home";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;5;2;1;1;5;0;"17";"16";16
+"GP";"M";15;"U";"LE3";"T";3;3;"other";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;3;2;1;1;2;0;"8";"10";12
+"GP";"M";16;"U";"GT3";"T";3;2;"other";"other";"home";"mother";1;1;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";5;4;3;1;1;5;0;"12";"14";15
+"GP";"F";15;"U";"GT3";"T";2;3;"other";"other";"other";"father";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";3;5;1;1;1;5;0;"8";"7";6
+"GP";"M";15;"U";"LE3";"T";4;3;"teacher";"services";"home";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;3;1;1;4;2;"15";"16";18
+"GP";"M";16;"R";"GT3";"A";4;4;"other";"teacher";"reputation";"mother";2;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";2;4;3;1;1;5;7;"15";"16";15
+"GP";"F";15;"R";"GT3";"T";3;4;"services";"health";"course";"mother";1;3;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;2;"12";"12";11
+"GP";"F";15;"R";"GT3";"T";2;2;"at_home";"other";"reputation";"mother";1;1;0;"yes";"yes";"yes";"yes";"yes";"yes";"no";"no";4;3;1;1;1;2;8;"14";"13";13
+"GP";"F";16;"U";"LE3";"T";2;2;"other";"other";"home";"mother";2;2;1;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";3;3;3;1;2;3;25;"7";"10";11
+"GP";"M";15;"U";"LE3";"T";4;4;"teacher";"other";"home";"other";1;1;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";5;4;3;2;4;5;8;"12";"12";12
+"GP";"M";15;"U";"GT3";"T";4;4;"services";"teacher";"course";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;1;5;2;"19";"18";18
+"GP";"M";15;"U";"GT3";"T";2;2;"services";"services";"course";"father";1;1;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;1;1;1;1;0;"8";"8";11
+"GP";"F";16;"U";"LE3";"T";2;2;"other";"at_home";"course";"father";2;2;1;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;2;5;14;"10";"10";9
+"GP";"F";15;"U";"LE3";"A";4;3;"other";"other";"course";"mother";1;2;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"yes";5;2;2;1;1;5;8;"8";"8";6
+"GP";"F";16;"U";"LE3";"A";3;3;"other";"services";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";2;3;5;1;4;3;12;"11";"12";11
+"GP";"M";16;"U";"GT3";"T";4;3;"health";"services";"reputation";"mother";1;4;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;2;2;1;1;2;4;"19";"19";20
+"GP";"M";15;"U";"GT3";"T";4;2;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";4;3;3;2;2;5;2;"15";"15";14
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"teacher";"other";"father";1;2;1;"yes";"yes";"no";"yes";"no";"yes";"yes";"no";4;4;4;1;1;3;2;"7";"7";7
+"GP";"F";16;"U";"LE3";"T";2;2;"services";"services";"course";"mother";3;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;2;3;4;2;"12";"13";13
+"GP";"F";15;"U";"LE3";"T";4;2;"health";"other";"other";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;1;1;5;2;"11";"13";13
+"GP";"M";15;"U";"LE3";"A";4;2;"health";"health";"other";"father";2;1;1;"no";"no";"no";"no";"yes";"yes";"no";"no";5;5;5;3;4;5;6;"11";"11";10
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"services";"course";"mother";1;1;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";3;3;4;2;3;5;0;"8";"10";11
+"GP";"F";15;"U";"LE3";"A";3;3;"other";"other";"other";"mother";1;1;0;"no";"no";"yes";"no";"yes";"yes";"yes";"no";5;3;4;4;4;1;6;"10";"13";13
+"GP";"F";16;"U";"GT3";"A";2;1;"other";"other";"other";"mother";1;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";5;3;4;1;1;2;8;"8";"9";10
+"GP";"F";15;"U";"GT3";"A";4;3;"services";"services";"reputation";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;1;0;"14";"15";15
+"GP";"M";15;"U";"GT3";"T";4;4;"teacher";"health";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";3;2;2;1;1;5;4;"14";"15";15
+"GP";"M";15;"U";"LE3";"T";1;2;"other";"at_home";"home";"father";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;2;"9";"10";9
+"GP";"F";16;"U";"GT3";"T";4;2;"services";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;3;1;1;5;2;"15";"16";16
+"GP";"F";16;"R";"GT3";"T";4;4;"health";"teacher";"other";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";2;4;4;2;3;4;6;"10";"11";11
+"GP";"F";16;"U";"GT3";"T";1;1;"services";"services";"course";"father";4;1;0;"yes";"yes";"no";"yes";"no";"yes";"yes";"yes";5;5;5;5;5;5;6;"10";"8";11
+"GP";"F";16;"U";"LE3";"T";1;2;"other";"services";"reputation";"father";1;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";4;4;3;1;1;1;4;"8";"10";9
+"GP";"F";16;"U";"GT3";"T";4;3;"teacher";"health";"home";"mother";1;3;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;4;4;2;4;4;2;"10";"9";9
+"GP";"F";15;"U";"LE3";"T";4;3;"services";"services";"reputation";"father";1;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"yes";4;4;4;2;4;2;0;"10";"10";10
+"GP";"F";16;"U";"LE3";"T";4;3;"teacher";"services";"course";"mother";3;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;3;1;2;1;2;"16";"15";15
+"GP";"M";15;"U";"GT3";"A";4;4;"other";"services";"reputation";"mother";1;4;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";1;3;3;5;5;3;4;"13";"13";12
+"GP";"F";16;"U";"GT3";"T";3;1;"services";"other";"course";"mother";1;4;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;1;2;5;4;"7";"7";6
+"GP";"F";15;"R";"LE3";"T";2;2;"health";"services";"reputation";"mother";2;2;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";4;1;3;1;3;4;2;"8";"9";8
+"GP";"F";15;"R";"LE3";"T";3;1;"other";"other";"reputation";"father";2;4;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";4;4;2;2;3;3;12;"16";"16";16
+"GP";"M";16;"U";"GT3";"T";3;1;"other";"other";"reputation";"father";2;4;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;2;1;1;5;0;"13";"15";15
+"GP";"M";15;"U";"GT3";"T";4;2;"other";"other";"course";"mother";1;4;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;3;3;1;1;3;0;"10";"10";10
+"GP";"F";15;"R";"GT3";"T";1;1;"other";"other";"reputation";"mother";1;2;2;"yes";"yes";"no";"no";"no";"yes";"yes";"yes";3;3;4;2;4;5;2;"8";"6";5
+"GP";"M";16;"U";"GT3";"T";3;1;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";5;3;2;2;2;5;2;"12";"12";14
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"services";"home";"mother";1;2;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;2;4;5;54;"11";"12";11
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;2;3;5;6;"9";"9";10
+"GP";"M";15;"U";"GT3";"T";4;0;"teacher";"other";"course";"mother";2;4;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;4;3;1;1;1;8;"11";"11";10
+"GP";"F";16;"U";"GT3";"T";2;2;"other";"other";"reputation";"mother";1;4;0;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";5;2;3;1;3;3;0;"11";"11";11
+"GP";"M";17;"U";"GT3";"T";2;1;"other";"other";"home";"mother";2;1;3;"yes";"yes";"no";"yes";"yes";"no";"yes";"no";4;5;1;1;1;3;2;"8";"8";10
+"GP";"F";16;"U";"GT3";"T";3;4;"at_home";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";2;4;3;1;2;3;12;"5";"5";5
+"GP";"M";15;"U";"GT3";"T";2;3;"other";"services";"course";"father";1;1;0;"yes";"yes";"yes";"yes";"no";"yes";"yes";"yes";3;2;2;1;3;3;2;"10";"12";12
+"GP";"M";15;"U";"GT3";"T";2;3;"other";"other";"home";"mother";1;3;0;"yes";"no";"yes";"no";"no";"yes";"yes";"no";5;3;2;1;2;5;4;"11";"10";11
+"GP";"F";15;"U";"LE3";"T";3;2;"services";"other";"reputation";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;4;4;1;1;5;10;"7";"6";6
+"GP";"M";15;"U";"LE3";"T";2;2;"services";"services";"home";"mother";2;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";5;3;3;1;3;4;4;"15";"15";15
+"GP";"F";15;"U";"GT3";"T";1;1;"other";"other";"home";"father";1;2;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";4;3;2;2;3;4;2;"9";"10";10
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"services";"reputation";"father";2;2;2;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";4;4;4;2;3;5;6;"7";"9";8
+"GP";"F";16;"U";"LE3";"T";2;2;"at_home";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;4;1;2;2;4;"8";"7";6
+"GP";"F";15;"U";"GT3";"T";4;2;"other";"other";"reputation";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;3;1;4;"13";"14";14
+"GP";"M";16;"U";"GT3";"T";2;2;"services";"other";"reputation";"father";2;2;1;"no";"no";"yes";"yes";"no";"yes";"yes";"no";4;4;2;1;1;3;12;"11";"10";10
+"GP";"M";16;"U";"LE3";"A";4;4;"teacher";"health";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;1;3;3;5;5;18;"8";"6";7
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"other";"home";"mother";1;3;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;3;3;1;3;4;0;"7";"7";8
+"GP";"F";15;"U";"GT3";"T";4;3;"services";"other";"reputation";"mother";1;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";4;5;5;1;3;1;4;"16";"17";18
+"GP";"F";16;"U";"LE3";"T";3;1;"other";"other";"home";"father";1;2;0;"yes";"yes";"no";"no";"yes";"yes";"no";"no";3;3;3;2;3;2;4;"7";"6";6
+"GP";"F";16;"U";"GT3";"T";4;2;"teacher";"services";"home";"mother";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;1;0;"11";"10";10
+"GP";"M";15;"U";"LE3";"T";2;2;"services";"health";"reputation";"mother";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;4;1;1;4;6;"11";"13";14
+"GP";"F";15;"R";"GT3";"T";1;1;"at_home";"other";"home";"mother";2;4;1;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;1;2;1;1;1;2;"7";"10";10
+"GP";"M";16;"R";"GT3";"T";4;3;"services";"other";"reputation";"mother";2;1;0;"yes";"yes";"no";"yes";"no";"yes";"yes";"no";3;3;3;1;1;4;2;"11";"15";15
+"GP";"F";16;"U";"GT3";"T";2;1;"other";"other";"course";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"no";"yes";4;3;5;1;1;5;2;"8";"9";10
+"GP";"F";16;"U";"GT3";"T";4;4;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;3;4;1;2;1;6;"11";"14";14
+"GP";"F";16;"U";"GT3";"T";4;3;"other";"at_home";"course";"mother";1;3;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";5;3;5;1;1;3;0;"7";"9";8
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"services";"other";"mother";1;1;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;5;5;5;5;4;14;"7";"7";5
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"teacher";"other";"father";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;3;1;1;4;0;"16";"17";17
+"GP";"M";15;"U";"GT3";"T";4;4;"services";"other";"course";"mother";1;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";5;3;3;1;1;5;4;"10";"13";14
+"GP";"F";15;"U";"GT3";"T";3;2;"services";"other";"home";"mother";2;2;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;5;1;1;2;26;"7";"6";6
+"GP";"M";15;"U";"GT3";"A";3;4;"services";"other";"course";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;4;4;1;1;1;0;"16";"18";18
+"GP";"F";15;"U";"GT3";"A";3;3;"other";"health";"reputation";"father";1;4;0;"yes";"no";"no";"no";"yes";"yes";"no";"no";4;3;3;1;1;4;10;"10";"11";11
+"GP";"F";15;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;4;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";5;1;2;1;1;3;8;"7";"8";8
+"GP";"M";16;"U";"GT3";"T";3;3;"services";"other";"home";"father";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;5;2;"16";"18";18
+"GP";"M";15;"R";"GT3";"T";4;4;"other";"other";"home";"father";4;4;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";1;3;5;3;5;1;6;"10";"13";13
+"GP";"F";16;"U";"LE3";"T";4;4;"health";"health";"other";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";5;4;5;1;1;4;4;"14";"15";16
+"GP";"M";15;"U";"LE3";"A";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;5;3;1;1;4;6;"18";"19";19
+"GP";"F";16;"R";"GT3";"T";3;3;"services";"other";"reputation";"father";1;3;1;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;1;2;1;1;2;0;"7";"10";10
+"GP";"F";16;"U";"GT3";"T";2;2;"at_home";"other";"home";"mother";1;2;1;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";3;1;2;1;1;5;6;"10";"13";13
+"GP";"M";15;"U";"LE3";"T";4;2;"teacher";"other";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;5;2;1;1;3;10;"18";"19";19
+"GP";"M";15;"R";"GT3";"T";2;1;"health";"services";"reputation";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;4;2;1;1;5;8;"9";"9";9
+"GP";"M";16;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;4;1;2;5;2;"15";"15";16
+"GP";"M";15;"U";"GT3";"T";4;4;"other";"teacher";"reputation";"father";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";4;4;3;1;1;2;2;"11";"13";14
+"GP";"M";16;"U";"GT3";"T";3;3;"other";"services";"home";"father";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;4;2;1;1;5;0;"13";"14";13
+"GP";"M";17;"R";"GT3";"T";1;3;"other";"other";"course";"father";3;2;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;2;4;1;4;5;20;"9";"7";8
+"GP";"M";15;"U";"GT3";"T";3;4;"other";"other";"reputation";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;4;3;1;2;4;6;"14";"13";13
+"GP";"F";15;"U";"GT3";"T";1;2;"at_home";"services";"course";"mother";1;2;0;"no";"no";"no";"no";"no";"yes";"yes";"no";3;2;3;1;2;1;2;"16";"15";15
+"GP";"M";15;"U";"GT3";"T";2;2;"services";"services";"home";"father";1;4;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;5;4;1;2;5;6;"16";"14";15
+"GP";"F";16;"U";"LE3";"T";2;4;"other";"health";"course";"father";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;2;2;1;2;5;2;"13";"13";13
+"GP";"M";16;"U";"GT3";"T";4;4;"health";"other";"course";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;4;4;1;4;5;18;"14";"11";13
+"GP";"F";16;"U";"GT3";"T";2;2;"other";"other";"home";"mother";1;2;0;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";5;4;4;1;1;5;0;"8";"7";8
+"GP";"M";15;"U";"GT3";"T";3;4;"services";"services";"home";"father";1;1;0;"yes";"no";"no";"no";"yes";"yes";"yes";"no";5;5;5;3;2;5;0;"13";"13";12
+"GP";"F";15;"U";"LE3";"A";3;4;"other";"other";"home";"mother";1;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;2;1;1;1;0;"7";"10";11
+"GP";"F";19;"U";"GT3";"T";0;1;"at_home";"other";"course";"other";1;2;3;"no";"yes";"no";"no";"no";"no";"no";"no";3;4;2;1;1;5;2;"7";"8";9
+"GP";"M";18;"R";"GT3";"T";2;2;"services";"other";"reputation";"mother";1;1;2;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;3;3;1;2;4;0;"7";"4";0
+"GP";"M";16;"R";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";3;5;5;2;5;4;8;"18";"18";18
+"GP";"F";15;"R";"GT3";"T";3;4;"services";"teacher";"course";"father";2;3;2;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;2;2;2;2;5;0;"12";"0";0
+"GP";"F";15;"U";"GT3";"T";1;1;"at_home";"other";"course";"mother";3;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;3;3;1;2;4;0;"8";"0";0
+"GP";"F";17;"U";"LE3";"T";2;2;"other";"other";"course";"father";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";3;4;4;1;3;5;12;"10";"13";12
+"GP";"F";16;"U";"GT3";"A";3;4;"services";"other";"course";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;2;1;1;4;5;16;"12";"11";11
+"GP";"M";15;"R";"GT3";"T";3;4;"at_home";"teacher";"course";"mother";4;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";5;3;3;1;1;5;0;"9";"0";0
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"at_home";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;1;1;5;0;"11";"0";0
+"GP";"M";17;"R";"GT3";"T";3;4;"at_home";"other";"course";"mother";3;2;0;"no";"no";"no";"no";"yes";"yes";"no";"no";5;4;5;2;4;5;0;"10";"0";0
+"GP";"F";16;"U";"GT3";"A";3;3;"other";"other";"course";"other";2;1;2;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;3;2;1;1;5;0;"4";"0";0
+"GP";"M";16;"U";"LE3";"T";1;1;"services";"other";"course";"mother";1;2;1;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;4;4;1;3;5;0;"14";"12";12
+"GP";"F";15;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;0;"16";"16";15
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"services";"course";"father";2;4;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";2;2;2;1;1;3;0;"7";"9";0
+"GP";"M";16;"U";"LE3";"T";2;2;"services";"services";"reputation";"father";2;1;2;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";2;3;3;2;2;2;8;"9";"9";9
+"GP";"F";15;"U";"GT3";"T";4;4;"teacher";"services";"course";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;2;2;1;1;5;2;"9";"11";11
+"GP";"F";16;"U";"LE3";"T";1;1;"at_home";"at_home";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;4;4;3;3;1;2;"14";"14";13
+"GP";"M";17;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;1;3;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;5;1;2;5;0;"5";"0";0
+"GP";"F";15;"U";"GT3";"T";1;1;"other";"services";"course";"father";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;4;2;1;2;5;0;"8";"11";11
+"GP";"F";15;"U";"GT3";"T";3;2;"health";"services";"home";"father";1;2;3;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;3;2;1;1;3;0;"6";"7";0
+"GP";"F";15;"U";"GT3";"T";1;2;"at_home";"other";"course";"mother";1;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";4;3;2;1;1;5;2;"10";"11";11
+"GP";"M";16;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";3;3;2;2;1;5;0;"7";"6";0
+"GP";"M";15;"U";"LE3";"A";2;1;"services";"other";"course";"mother";4;1;3;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;5;5;2;5;5;0;"8";"9";10
+"GP";"M";18;"U";"LE3";"T";1;1;"other";"other";"course";"mother";1;1;3;"no";"no";"no";"no";"yes";"no";"yes";"yes";2;3;5;2;5;4;0;"6";"5";0
+"GP";"M";16;"U";"LE3";"T";2;1;"at_home";"other";"course";"mother";1;1;1;"no";"no";"no";"yes";"yes";"yes";"no";"yes";4;4;4;3;5;5;6;"12";"13";14
+"GP";"F";15;"R";"GT3";"T";3;3;"services";"services";"reputation";"other";2;3;2;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;2;1;2;3;3;8;"10";"10";10
+"GP";"M";19;"U";"GT3";"T";3;2;"services";"at_home";"home";"mother";1;1;3;"no";"yes";"no";"no";"yes";"no";"yes";"yes";4;5;4;1;1;4;0;"5";"0";0
+"GP";"F";17;"U";"GT3";"T";4;4;"other";"teacher";"course";"mother";1;1;0;"yes";"yes";"no";"no";"yes";"yes";"no";"yes";4;2;1;1;1;4;0;"11";"11";12
+"GP";"M";15;"R";"GT3";"T";2;3;"at_home";"services";"course";"mother";1;2;0;"yes";"no";"yes";"yes";"yes";"yes";"no";"no";4;4;4;1;1;1;2;"11";"8";8
+"GP";"M";17;"R";"LE3";"T";1;2;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"no";"no";2;2;2;3;3;5;8;"16";"12";13
+"GP";"F";18;"R";"GT3";"T";1;1;"at_home";"other";"course";"mother";3;1;3;"no";"yes";"no";"yes";"no";"yes";"no";"no";5;2;5;1;5;4;6;"9";"8";10
+"GP";"M";16;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";3;1;0;"no";"no";"no";"no";"no";"yes";"no";"no";4;2;2;1;2;3;2;"17";"15";15
+"GP";"M";16;"U";"GT3";"T";3;3;"other";"services";"course";"father";1;2;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;5;5;4;4;5;4;"10";"12";12
+"GP";"M";17;"R";"LE3";"T";2;1;"at_home";"other";"course";"mother";2;1;2;"no";"no";"no";"yes";"yes";"no";"yes";"yes";3;3;2;2;2;5;0;"7";"6";0
+"GP";"M";15;"R";"GT3";"T";3;2;"other";"other";"course";"mother";2;2;2;"yes";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;4;1;4;3;6;"5";"9";7
+"GP";"M";16;"U";"LE3";"T";1;2;"other";"other";"course";"mother";2;1;1;"no";"no";"no";"yes";"yes";"yes";"no";"no";4;4;4;2;4;5;0;"7";"0";0
+"GP";"M";17;"U";"GT3";"T";1;3;"at_home";"services";"course";"father";1;1;0;"no";"no";"no";"no";"yes";"no";"yes";"no";5;3;3;1;4;2;2;"10";"10";10
+"GP";"M";17;"R";"LE3";"T";1;1;"other";"services";"course";"mother";4;2;3;"no";"no";"no";"yes";"yes";"no";"no";"yes";5;3;5;1;5;5;0;"5";"8";7
+"GP";"M";16;"U";"GT3";"T";3;2;"services";"services";"course";"mother";2;1;1;"no";"yes";"no";"yes";"no";"no";"no";"no";4;5;2;1;1;2;16;"12";"11";12
+"GP";"M";16;"U";"GT3";"T";2;2;"other";"other";"course";"father";1;2;0;"no";"no";"no";"no";"yes";"no";"yes";"no";4;3;5;2;4;4;4;"10";"10";10
+"GP";"F";16;"U";"GT3";"T";4;2;"health";"services";"home";"father";1;2;0;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";4;2;3;1;1;3;0;"14";"15";16
+"GP";"F";16;"U";"GT3";"T";2;2;"other";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";5;1;5;1;1;4;0;"6";"7";0
+"GP";"F";16;"U";"GT3";"T";4;4;"health";"health";"reputation";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;4;2;1;1;3;0;"14";"14";14
+"GP";"M";16;"U";"GT3";"T";3;4;"other";"other";"course";"father";3;1;2;"no";"yes";"no";"yes";"no";"yes";"yes";"no";3;4;5;2;4;2;0;"6";"5";0
+"GP";"M";16;"U";"GT3";"T";1;0;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;3;2;1;1;3;2;"13";"15";16
+"GP";"M";17;"U";"LE3";"T";4;4;"teacher";"other";"reputation";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;4;4;1;3;5;0;"13";"11";10
+"GP";"F";16;"U";"GT3";"T";1;3;"at_home";"services";"home";"mother";1;2;3;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;3;5;1;1;3;0;"8";"7";0
+"GP";"F";16;"U";"LE3";"T";3;3;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;4;5;1;1;4;4;"10";"11";9
+"GP";"M";17;"U";"LE3";"T";4;3;"teacher";"other";"course";"mother";2;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";4;4;4;4;4;4;4;"10";"9";9
+"GP";"F";16;"U";"GT3";"T";2;2;"services";"other";"reputation";"mother";2;2;0;"no";"no";"yes";"yes";"no";"yes";"yes";"no";3;4;4;1;4;5;2;"13";"13";11
+"GP";"M";17;"U";"GT3";"T";3;3;"other";"other";"reputation";"father";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;3;4;1;4;4;4;"6";"5";6
+"GP";"M";16;"R";"GT3";"T";4;2;"teacher";"services";"other";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;3;4;3;10;"10";"8";9
+"GP";"M";17;"U";"GT3";"T";4;3;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;2;3;1;1;2;4;"10";"10";11
+"GP";"M";16;"U";"GT3";"T";4;3;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;4;3;2;3;3;10;"9";"8";8
+"GP";"M";16;"U";"GT3";"T";3;3;"services";"other";"home";"mother";1;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";4;2;3;1;2;3;2;"12";"13";12
+"GP";"F";17;"U";"GT3";"T";2;4;"services";"services";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;4;2;2;3;5;0;"16";"17";17
+"GP";"F";17;"U";"LE3";"T";3;3;"other";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;2;3;1;56;"9";"9";8
+"GP";"F";16;"U";"GT3";"T";3;2;"other";"other";"reputation";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";1;2;2;1;2;1;14;"12";"13";12
+"GP";"M";17;"U";"GT3";"T";3;3;"services";"services";"other";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;4;2;3;4;12;"12";"12";11
+"GP";"M";16;"U";"GT3";"T";1;2;"services";"services";"other";"mother";1;1;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";3;3;3;1;2;3;2;"11";"12";11
+"GP";"M";16;"U";"LE3";"T";2;1;"other";"other";"course";"mother";1;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";4;2;3;1;2;5;0;"15";"15";15
+"GP";"F";17;"U";"GT3";"A";3;3;"health";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";3;3;3;1;3;3;6;"8";"7";9
+"GP";"M";17;"R";"GT3";"T";1;2;"at_home";"other";"home";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"no";"no";3;1;3;1;5;3;4;"8";"9";10
+"GP";"F";16;"U";"GT3";"T";2;3;"services";"services";"course";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;2;10;"11";"12";13
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"services";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;3;0;"8";"8";9
+"GP";"M";17;"U";"GT3";"T";1;2;"at_home";"services";"other";"other";2;2;0;"no";"no";"yes";"yes";"no";"yes";"yes";"no";4;4;4;4;5;5;12;"7";"8";8
+"GP";"M";16;"R";"GT3";"T";3;3;"services";"services";"reputation";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;3;4;5;8;"8";"9";10
+"GP";"M";16;"U";"GT3";"T";2;3;"other";"other";"home";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;3;3;1;1;3;0;"13";"14";14
+"GP";"F";17;"U";"LE3";"T";2;4;"services";"services";"course";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;2;1;1;5;0;"14";"15";15
+"GP";"M";17;"U";"GT3";"T";4;4;"services";"teacher";"home";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;2;3;1;2;5;4;"17";"15";16
+"GP";"M";16;"R";"LE3";"T";3;3;"teacher";"other";"home";"father";3;1;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;3;4;3;5;3;8;"9";"9";10
+"GP";"F";17;"U";"GT3";"T";4;4;"services";"teacher";"home";"mother";2;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;4;2;3;2;24;"18";"18";18
+"GP";"F";16;"U";"LE3";"T";4;4;"teacher";"teacher";"reputation";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;5;2;1;2;3;0;"9";"9";10
+"GP";"F";16;"U";"GT3";"T";4;3;"health";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;5;1;5;2;2;"16";"16";16
+"GP";"F";16;"U";"GT3";"T";2;3;"other";"other";"reputation";"mother";1;2;0;"yes";"yes";"yes";"yes";"yes";"yes";"no";"no";4;4;3;1;3;4;6;"8";"10";10
+"GP";"F";17;"U";"GT3";"T";1;1;"other";"other";"course";"mother";1;2;0;"no";"yes";"yes";"no";"no";"yes";"no";"no";4;4;4;1;3;1;4;"9";"9";10
+"GP";"F";17;"R";"GT3";"T";2;2;"other";"other";"reputation";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;3;2;1;2;3;18;"7";"6";6
+"GP";"F";16;"R";"GT3";"T";2;2;"services";"services";"reputation";"mother";2;4;0;"no";"yes";"yes";"yes";"no";"yes";"yes";"no";5;3;5;1;1;5;6;"10";"10";11
+"GP";"F";17;"U";"GT3";"T";3;4;"at_home";"services";"home";"mother";1;3;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;4;3;3;4;5;28;"10";"9";9
+"GP";"F";16;"U";"GT3";"A";3;1;"services";"other";"course";"mother";1;2;3;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";2;3;3;2;2;4;5;"7";"7";7
+"GP";"F";16;"U";"GT3";"T";4;3;"teacher";"other";"other";"mother";1;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";1;3;2;1;1;1;10;"11";"12";13
+"GP";"F";16;"U";"GT3";"T";1;1;"at_home";"other";"home";"mother";2;1;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";4;3;2;1;4;5;6;"9";"9";10
+"GP";"F";17;"R";"GT3";"T";4;3;"teacher";"other";"reputation";"mother";2;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;4;2;1;1;4;6;"7";"7";7
+"GP";"F";19;"U";"GT3";"T";3;3;"other";"other";"reputation";"other";1;4;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;1;2;3;10;"8";"8";8
+"GP";"M";17;"U";"LE3";"T";4;4;"services";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";5;3;5;4;5;3;13;"12";"12";13
+"GP";"F";16;"U";"GT3";"A";2;2;"other";"other";"reputation";"mother";1;2;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"no";3;3;4;1;1;4;0;"12";"13";14
+"GP";"M";18;"U";"GT3";"T";2;2;"services";"other";"home";"mother";1;2;1;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;4;4;2;4;5;15;"6";"7";8
+"GP";"F";17;"R";"LE3";"T";4;4;"services";"other";"other";"mother";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";5;2;1;1;2;3;12;"8";"10";10
+"GP";"F";17;"U";"LE3";"T";3;2;"other";"other";"reputation";"mother";2;2;0;"no";"no";"yes";"no";"yes";"yes";"yes";"no";4;4;4;1;3;1;2;"14";"15";15
+"GP";"F";17;"U";"GT3";"T";4;3;"other";"other";"reputation";"mother";1;2;2;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";3;4;5;2;4;1;22;"6";"6";4
+"GP";"M";18;"U";"LE3";"T";3;3;"services";"health";"home";"father";1;2;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";3;2;4;2;4;4;13;"6";"6";8
+"GP";"F";17;"U";"GT3";"T";2;3;"at_home";"other";"home";"father";2;1;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";3;3;3;1;4;3;3;"7";"7";8
+"GP";"F";17;"U";"GT3";"T";2;2;"at_home";"at_home";"course";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;1;1;4;4;"9";"10";10
+"GP";"F";17;"R";"GT3";"T";2;1;"at_home";"services";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;5;1;2;5;2;"6";"6";6
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"other";"reputation";"mother";1;3;1;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";4;3;4;1;1;5;0;"6";"5";0
+"GP";"F";16;"U";"GT3";"T";2;3;"services";"teacher";"other";"mother";1;2;0;"yes";"no";"no";"no";"yes";"yes";"yes";"no";2;3;1;1;1;3;2;"16";"16";17
+"GP";"M";18;"U";"GT3";"T";2;2;"other";"other";"home";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";3;3;3;5;5;4;0;"12";"13";13
+"GP";"F";16;"U";"GT3";"T";4;4;"teacher";"services";"home";"mother";1;3;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";5;3;2;1;1;5;0;"13";"13";14
+"GP";"F";18;"R";"GT3";"T";3;1;"other";"other";"reputation";"mother";1;2;1;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;1;1;4;16;"9";"8";7
+"GP";"F";17;"U";"GT3";"T";3;2;"other";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;3;4;1;3;3;10;"16";"15";15
+"GP";"M";17;"U";"LE3";"T";2;3;"services";"services";"reputation";"father";1;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";5;3;3;1;3;3;2;"12";"11";12
+"GP";"M";18;"U";"LE3";"T";2;1;"at_home";"other";"course";"mother";4;2;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;3;2;4;5;3;14;"10";"8";9
+"GP";"F";17;"U";"GT3";"A";2;1;"other";"other";"course";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;2;3;1;2;3;10;"12";"10";12
+"GP";"F";17;"U";"LE3";"T";4;3;"health";"other";"reputation";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;2;3;1;2;3;14;"13";"13";14
+"GP";"M";17;"R";"GT3";"T";2;2;"other";"other";"course";"father";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;5;2;1;1;1;4;"11";"11";11
+"GP";"M";17;"U";"GT3";"T";4;4;"teacher";"teacher";"reputation";"mother";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;5;5;1;3;2;14;"11";"9";9
+"GP";"M";16;"U";"GT3";"T";4;4;"health";"other";"reputation";"father";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;2;4;2;4;1;2;"14";"13";13
+"GP";"M";16;"U";"LE3";"T";1;1;"other";"other";"home";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";3;4;2;1;1;5;18;"9";"7";6
+"GP";"M";16;"U";"GT3";"T";3;2;"at_home";"other";"reputation";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;1;3;2;10;"11";"9";10
+"GP";"M";17;"U";"LE3";"T";2;2;"other";"other";"home";"father";1;2;0;"no";"no";"yes";"yes";"no";"yes";"yes";"yes";4;4;2;5;5;4;4;"14";"13";13
+"GP";"F";16;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;5;2;1;1;5;20;"13";"12";12
+"GP";"F";17;"R";"GT3";"T";2;1;"at_home";"services";"course";"mother";3;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";2;1;1;1;1;3;2;"13";"11";11
+"GP";"M";18;"U";"GT3";"T";2;2;"other";"services";"reputation";"father";1;2;1;"no";"no";"no";"no";"yes";"no";"yes";"no";5;5;4;3;5;2;0;"7";"7";0
+"GP";"M";17;"U";"LE3";"T";4;3;"health";"other";"course";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";2;5;5;1;4;5;14;"12";"12";12
+"GP";"M";17;"R";"LE3";"A";4;4;"teacher";"other";"course";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";3;3;3;2;3;4;2;"10";"11";12
+"GP";"M";16;"U";"LE3";"T";4;3;"teacher";"other";"course";"mother";1;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;4;5;1;1;3;0;"6";"0";0
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"services";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;3;2;1;2;5;0;"13";"12";12
+"GP";"F";18;"U";"GT3";"T";2;1;"other";"other";"course";"other";2;3;0;"no";"yes";"yes";"no";"no";"yes";"yes";"yes";4;4;4;1;1;3;0;"7";"0";0
+"GP";"M";16;"U";"GT3";"T";2;1;"other";"other";"course";"mother";3;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;4;6;"18";"18";18
+"GP";"M";17;"U";"GT3";"T";2;3;"other";"other";"course";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;2;2;1;1;2;4;"12";"12";13
+"GP";"M";22;"U";"GT3";"T";3;1;"services";"services";"other";"mother";1;1;3;"no";"no";"no";"no";"no";"no";"yes";"yes";5;4;5;5;5;1;16;"6";"8";8
+"GP";"M";18;"R";"LE3";"T";3;3;"other";"services";"course";"mother";1;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;3;1;3;5;8;"3";"5";5
+"GP";"M";16;"U";"GT3";"T";0;2;"other";"other";"other";"mother";1;1;0;"no";"no";"yes";"no";"no";"yes";"yes";"no";4;3;2;2;4;5;0;"13";"15";15
+"GP";"M";18;"U";"GT3";"T";3;2;"services";"other";"course";"mother";2;1;1;"no";"no";"no";"no";"yes";"no";"yes";"no";4;4;5;2;4;5;0;"6";"8";8
+"GP";"M";16;"U";"GT3";"T";3;3;"at_home";"other";"reputation";"other";3;2;0;"yes";"yes";"no";"no";"no";"yes";"yes";"no";5;3;3;1;3;2;6;"7";"10";10
+"GP";"M";18;"U";"GT3";"T";2;1;"services";"services";"other";"mother";1;1;1;"no";"no";"no";"no";"no";"no";"yes";"no";3;2;5;2;5;5;4;"6";"9";8
+"GP";"M";16;"R";"GT3";"T";2;1;"other";"other";"course";"mother";2;1;0;"no";"no";"no";"yes";"no";"yes";"no";"no";3;3;2;1;3;3;0;"8";"9";8
+"GP";"M";17;"R";"GT3";"T";2;1;"other";"other";"course";"mother";1;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;4;2;2;4;5;0;"8";"12";12
+"GP";"M";17;"U";"LE3";"T";1;1;"health";"other";"course";"mother";2;1;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;4;4;1;2;5;2;"7";"9";8
+"GP";"F";17;"U";"LE3";"T";4;2;"teacher";"services";"reputation";"mother";1;4;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;2;3;1;1;4;6;"14";"12";13
+"GP";"M";19;"U";"LE3";"A";4;3;"services";"at_home";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;1;1;1;1;12;"11";"11";11
+"GP";"M";18;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;2;4;1;2;4;8;"15";"14";14
+"GP";"F";17;"U";"LE3";"T";2;2;"services";"services";"course";"father";1;4;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";3;4;1;1;1;2;0;"10";"9";0
+"GP";"F";18;"U";"GT3";"T";4;3;"services";"other";"home";"father";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";3;1;2;1;3;2;21;"17";"18";18
+"GP";"M";18;"U";"GT3";"T";4;3;"teacher";"other";"course";"mother";1;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";4;3;2;1;1;3;2;"8";"8";8
+"GP";"M";18;"R";"GT3";"T";3;2;"other";"other";"course";"mother";1;3;0;"no";"no";"no";"yes";"no";"yes";"no";"no";5;3;2;1;1;3;1;"13";"12";12
+"GP";"F";17;"U";"GT3";"T";3;3;"other";"other";"home";"mother";1;3;0;"no";"no";"no";"yes";"no";"yes";"no";"no";3;2;3;1;1;4;4;"10";"9";9
+"GP";"F";18;"U";"GT3";"T";2;2;"at_home";"services";"home";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;3;3;1;1;3;0;"9";"10";0
+"GP";"M";18;"R";"LE3";"A";3;4;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;2;5;3;4;1;13;"17";"17";17
+"GP";"M";17;"U";"GT3";"T";3;1;"services";"other";"other";"mother";1;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";5;4;4;3;4;5;2;"9";"9";10
+"GP";"F";18;"R";"GT3";"T";4;4;"teacher";"other";"reputation";"mother";2;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";4;3;4;2;2;4;8;"12";"10";11
+"GP";"M";18;"U";"GT3";"T";4;2;"health";"other";"reputation";"father";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";5;4;5;1;3;5;10;"10";"9";10
+"GP";"F";18;"R";"GT3";"T";2;1;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";4;3;5;1;2;3;0;"6";"0";0
+"GP";"F";19;"U";"GT3";"T";3;3;"other";"services";"home";"other";1;2;2;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;5;3;3;5;15;"9";"9";9
+"GP";"F";18;"U";"GT3";"T";2;3;"other";"services";"reputation";"father";1;4;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;5;5;1;3;2;4;"15";"14";14
+"GP";"F";18;"U";"LE3";"T";1;1;"other";"other";"home";"mother";2;2;0;"no";"yes";"yes";"no";"no";"yes";"no";"no";4;4;3;1;1;3;2;"11";"11";11
+"GP";"M";17;"R";"GT3";"T";1;2;"at_home";"at_home";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"no";"yes";"no";"yes";3;5;2;2;2;1;2;"15";"14";14
+"GP";"F";17;"U";"GT3";"T";2;4;"at_home";"health";"reputation";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;3;3;1;1;1;2;"10";"10";10
+"GP";"F";17;"U";"LE3";"T";2;2;"services";"other";"course";"mother";2;2;0;"yes";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;4;4;2;3;5;6;"12";"12";12
+"GP";"F";18;"R";"GT3";"A";3;2;"other";"services";"home";"mother";2;2;0;"no";"no";"no";"no";"no";"no";"yes";"yes";4;1;1;1;1;5;75;"10";"9";9
+"GP";"M";18;"U";"GT3";"T";4;4;"teacher";"services";"home";"mother";2;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";3;2;4;1;4;3;22;"9";"9";9
+"GP";"F";18;"U";"GT3";"T";4;4;"health";"health";"reputation";"father";1;2;1;"yes";"yes";"no";"yes";"yes";"yes";"yes";"yes";2;4;4;1;1;4;15;"9";"8";8
+"GP";"M";18;"U";"LE3";"T";4;3;"teacher";"services";"course";"mother";2;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";4;2;3;1;2;1;8;"10";"11";10
+"GP";"M";17;"U";"LE3";"A";4;1;"services";"other";"home";"mother";2;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";4;5;4;2;4;5;30;"8";"8";8
+"GP";"M";17;"U";"LE3";"A";3;2;"teacher";"services";"home";"mother";1;1;1;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;4;3;4;3;19;"11";"9";10
+"GP";"F";18;"R";"LE3";"T";1;1;"at_home";"other";"reputation";"mother";2;4;0;"no";"yes";"yes";"yes";"yes";"yes";"no";"no";5;2;2;1;1;3;1;"12";"12";12
+"GP";"F";18;"U";"GT3";"T";1;1;"other";"other";"home";"mother";2;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";5;4;4;1;1;4;4;"8";"9";10
+"GP";"F";17;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;4;5;1;2;5;4;"10";"9";11
+"GP";"M";17;"U";"GT3";"T";1;1;"other";"other";"reputation";"father";1;2;0;"no";"no";"yes";"no";"no";"yes";"yes";"no";4;3;3;1;2;4;2;"12";"10";11
+"GP";"F";18;"U";"GT3";"T";2;2;"at_home";"at_home";"other";"mother";1;3;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;1;2;2;5;"18";"18";19
+"GP";"F";17;"U";"GT3";"T";1;1;"services";"teacher";"reputation";"mother";1;3;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;6;"13";"12";12
+"GP";"M";18;"U";"GT3";"T";2;1;"services";"services";"reputation";"mother";1;3;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";4;2;4;1;3;2;6;"15";"14";14
+"GP";"M";18;"U";"LE3";"A";4;4;"teacher";"teacher";"reputation";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;4;3;1;1;2;9;"15";"13";15
+"GP";"M";18;"U";"GT3";"T";4;2;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;3;2;1;4;5;11;"12";"11";11
+"GP";"F";17;"U";"GT3";"T";4;3;"health";"services";"reputation";"mother";1;3;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;2;2;1;2;3;0;"15";"15";15
+"GP";"F";18;"U";"LE3";"T";2;1;"services";"at_home";"reputation";"mother";1;2;1;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;4;3;1;1;5;12;"12";"12";13
+"GP";"F";17;"R";"LE3";"T";3;1;"services";"other";"reputation";"mother";2;4;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";3;1;2;1;1;3;6;"18";"18";18
+"GP";"M";18;"R";"LE3";"T";3;2;"services";"other";"reputation";"mother";2;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;4;2;1;1;4;8;"14";"13";14
+"GP";"M";17;"U";"GT3";"T";3;3;"health";"other";"home";"mother";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;4;3;1;3;5;4;"14";"12";11
+"GP";"F";19;"U";"GT3";"T";4;4;"health";"other";"reputation";"other";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";2;3;4;2;3;2;0;"10";"9";0
+"GP";"F";18;"U";"LE3";"T";4;3;"other";"other";"home";"other";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;4;5;1;2;2;10;"10";"8";8
+"GP";"F";18;"U";"GT3";"T";4;3;"other";"other";"reputation";"father";1;4;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;0;"14";"13";14
+"GP";"M";18;"U";"LE3";"T";4;4;"teacher";"teacher";"home";"mother";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";1;4;2;2;2;1;5;"16";"15";16
+"GP";"F";18;"U";"LE3";"A";4;4;"health";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;2;4;1;1;4;14;"12";"10";11
+"GP";"M";17;"U";"LE3";"T";4;4;"other";"teacher";"home";"father";2;1;0;"no";"no";"yes";"no";"yes";"yes";"yes";"no";4;1;1;2;2;5;0;"11";"11";10
+"GP";"F";17;"U";"GT3";"T";4;2;"other";"other";"reputation";"mother";2;3;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;0;"15";"12";14
+"GP";"F";17;"U";"GT3";"T";3;2;"health";"health";"reputation";"father";1;4;0;"no";"yes";"yes";"yes";"no";"yes";"yes";"no";5;2;2;1;2;5;0;"17";"17";18
+"GP";"M";19;"U";"GT3";"T";3;3;"other";"other";"home";"other";1;2;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;4;1;1;3;20;"15";"14";13
+"GP";"F";18;"U";"GT3";"T";2;4;"services";"at_home";"reputation";"other";1;2;1;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;4;3;1;1;3;8;"14";"12";12
+"GP";"M";20;"U";"GT3";"A";3;2;"services";"other";"course";"other";1;1;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";5;5;3;1;1;5;0;"17";"18";18
+"GP";"M";19;"U";"GT3";"T";4;4;"teacher";"services";"reputation";"other";2;1;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;3;4;1;1;4;38;"8";"9";8
+"GP";"M";19;"R";"GT3";"T";3;3;"other";"services";"reputation";"father";1;2;1;"no";"no";"no";"yes";"yes";"yes";"no";"yes";4;5;3;1;2;5;0;"15";"12";12
+"GP";"F";19;"U";"LE3";"T";1;1;"at_home";"other";"reputation";"other";1;2;1;"yes";"yes";"no";"yes";"no";"yes";"yes";"no";4;4;3;1;3;3;18;"12";"10";10
+"GP";"F";19;"U";"LE3";"T";1;2;"services";"services";"home";"other";1;2;1;"no";"no";"no";"yes";"no";"yes";"no";"yes";4;2;4;2;2;3;0;"9";"9";0
+"GP";"F";19;"U";"GT3";"T";2;1;"at_home";"other";"other";"other";3;2;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";3;4;1;1;1;2;20;"14";"12";13
+"GP";"M";19;"U";"GT3";"T";1;2;"other";"services";"course";"other";1;2;1;"no";"no";"no";"no";"no";"yes";"yes";"no";4;5;2;2;2;4;3;"13";"11";11
+"GP";"F";19;"U";"LE3";"T";3;2;"services";"other";"reputation";"other";2;2;1;"no";"yes";"yes";"no";"no";"yes";"yes";"yes";4;2;2;1;2;1;22;"13";"10";11
+"GP";"F";19;"U";"GT3";"T";1;1;"at_home";"health";"home";"other";1;3;2;"no";"no";"no";"no";"no";"yes";"yes";"yes";4;1;2;1;1;3;14;"15";"13";13
+"GP";"F";19;"R";"GT3";"T";2;3;"other";"other";"reputation";"other";1;3;1;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;1;2;1;1;3;40;"13";"11";11
+"GP";"F";18;"U";"GT3";"T";2;1;"services";"other";"course";"mother";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;3;3;1;2;1;0;"8";"8";0
+"GP";"F";18;"U";"GT3";"T";4;3;"other";"other";"course";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;3;4;1;1;5;9;"9";"10";9
+"GP";"F";17;"R";"GT3";"T";3;4;"at_home";"services";"course";"father";1;3;0;"no";"yes";"yes";"yes";"no";"yes";"yes";"no";4;3;4;2;5;5;0;"11";"11";10
+"GP";"F";18;"U";"GT3";"T";4;4;"teacher";"other";"course";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;4;4;3;3;5;2;"11";"11";11
+"GP";"F";17;"U";"GT3";"A";4;3;"services";"services";"course";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";5;2;2;1;2;5;23;"13";"13";13
+"GP";"F";17;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";4;2;2;1;1;3;12;"11";"9";9
+"GP";"F";17;"R";"LE3";"T";2;2;"services";"services";"course";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;3;2;2;2;3;3;"11";"11";11
+"GP";"F";17;"U";"GT3";"T";3;1;"services";"services";"course";"father";1;3;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";3;4;3;2;3;5;1;"12";"14";15
+"GP";"F";17;"U";"LE3";"T";0;2;"at_home";"at_home";"home";"father";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;3;3;2;3;2;0;"16";"15";15
+"GP";"M";18;"U";"GT3";"T";4;4;"other";"other";"course";"mother";1;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;2;3;3;"9";"12";11
+"GP";"M";17;"U";"GT3";"T";3;3;"other";"services";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;3;5;3;5;5;3;"14";"15";16
+"GP";"M";17;"R";"GT3";"T";2;2;"services";"other";"course";"mother";4;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;5;5;5;4;8;"11";"10";10
+"GP";"F";17;"U";"GT3";"T";4;4;"teacher";"services";"course";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;4;4;1;3;4;7;"10";"9";9
+"GP";"F";17;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";2;3;0;"no";"yes";"yes";"no";"no";"yes";"yes";"yes";4;3;3;1;2;4;4;"14";"14";14
+"GP";"M";18;"U";"LE3";"T";2;2;"other";"other";"course";"mother";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;5;5;2;4;5;2;"9";"8";8
+"GP";"F";17;"R";"GT3";"T";2;4;"at_home";"other";"course";"father";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;3;1;1;5;7;"12";"14";14
+"GP";"F";18;"U";"GT3";"T";3;3;"services";"services";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;1;4;0;"7";"0";0
+"GP";"F";18;"U";"LE3";"T";2;2;"other";"other";"home";"other";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;3;3;1;1;2;0;"8";"8";0
+"GP";"F";18;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";2;4;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";4;4;4;1;1;4;0;"10";"9";0
+"GP";"F";17;"U";"GT3";"T";3;4;"services";"other";"course";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;5;1;3;5;16;"16";"15";15
+"GP";"F";19;"R";"GT3";"A";3;1;"services";"at_home";"home";"other";1;3;1;"no";"no";"yes";"no";"yes";"yes";"no";"no";5;4;3;1;2;5;12;"14";"13";13
+"GP";"F";17;"U";"GT3";"T";3;2;"other";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;3;2;2;3;2;0;"7";"8";0
+"GP";"F";18;"U";"LE3";"T";3;3;"services";"services";"home";"mother";1;4;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;3;3;1;1;1;7;"16";"15";17
+"GP";"F";17;"R";"GT3";"A";3;2;"other";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;3;2;3;2;4;"9";"10";10
+"GP";"F";19;"U";"GT3";"T";2;1;"services";"services";"home";"other";1;3;1;"no";"no";"yes";"yes";"yes";"yes";"yes";"yes";4;3;4;1;3;3;4;"11";"12";11
+"GP";"M";18;"U";"GT3";"T";4;4;"teacher";"services";"home";"father";1;2;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;2;2;0;"10";"10";0
+"GP";"M";18;"U";"LE3";"T";3;4;"services";"other";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;1;3;5;11;"16";"15";15
+"GP";"F";17;"U";"GT3";"A";2;2;"at_home";"at_home";"home";"father";1;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";3;3;1;1;2;4;0;"9";"8";0
+"GP";"F";18;"U";"GT3";"T";2;3;"at_home";"other";"course";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;2;3;4;"11";"10";10
+"GP";"F";18;"U";"GT3";"T";3;2;"other";"services";"other";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;4;3;2;3;1;7;"13";"13";14
+"GP";"M";18;"R";"GT3";"T";4;3;"teacher";"services";"course";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;3;2;1;2;4;9;"16";"15";16
+"GP";"M";18;"U";"GT3";"T";4;3;"teacher";"other";"course";"mother";1;3;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";5;4;5;2;3;5;0;"10";"10";9
+"GP";"F";17;"U";"GT3";"T";4;3;"health";"other";"reputation";"mother";1;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;4;3;1;3;4;0;"13";"15";15
+"MS";"M";18;"R";"GT3";"T";3;2;"other";"other";"course";"mother";2;1;1;"no";"yes";"no";"no";"no";"yes";"yes";"no";2;5;5;5;5;5;10;"11";"13";13
+"MS";"M";19;"R";"GT3";"T";1;1;"other";"services";"home";"other";3;2;3;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;4;4;3;3;2;8;"8";"7";8
+"MS";"M";17;"U";"GT3";"T";3;3;"health";"other";"course";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;5;4;2;3;3;2;"13";"13";13
+"MS";"M";18;"U";"LE3";"T";1;3;"at_home";"services";"course";"mother";1;1;1;"no";"no";"no";"no";"yes";"no";"yes";"yes";4;3;3;2;3;3;7;"8";"7";8
+"MS";"M";19;"R";"GT3";"T";1;1;"other";"other";"home";"other";3;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;3;3;5;4;"8";"8";8
+"MS";"M";17;"R";"GT3";"T";4;3;"services";"other";"home";"mother";2;2;0;"no";"yes";"yes";"yes";"no";"yes";"yes";"yes";4;5;5;1;3;2;4;"13";"11";11
+"MS";"F";18;"U";"GT3";"T";3;3;"services";"services";"course";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";5;3;4;1;1;5;0;"10";"9";9
+"MS";"F";17;"R";"GT3";"T";4;4;"teacher";"services";"other";"father";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;1;2;5;4;"12";"13";13
+"MS";"F";17;"U";"LE3";"A";3;2;"services";"other";"reputation";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";1;2;3;1;2;5;2;"12";"12";11
+"MS";"M";18;"U";"LE3";"T";1;1;"other";"services";"home";"father";2;1;0;"no";"no";"no";"no";"no";"yes";"yes";"yes";3;3;2;1;2;3;4;"10";"10";10
+"MS";"F";18;"U";"LE3";"T";1;1;"at_home";"services";"course";"father";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;3;2;1;1;4;0;"18";"16";16
+"MS";"F";18;"R";"LE3";"A";1;4;"at_home";"other";"course";"mother";3;2;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;3;4;1;4;5;0;"13";"13";13
+"MS";"M";18;"R";"LE3";"T";1;1;"at_home";"other";"other";"mother";2;2;1;"no";"no";"no";"yes";"no";"no";"no";"no";4;4;3;2;3;5;2;"13";"12";12
+"MS";"F";18;"U";"GT3";"T";3;3;"services";"services";"other";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;2;1;3;3;0;"11";"11";10
+"MS";"F";17;"U";"LE3";"T";4;4;"at_home";"at_home";"course";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";2;3;4;1;1;1;0;"16";"15";15
+"MS";"F";17;"R";"GT3";"T";1;2;"other";"services";"course";"father";2;2;0;"no";"no";"no";"no";"no";"yes";"no";"no";3;2;2;1;2;3;0;"12";"11";12
+"MS";"M";18;"R";"GT3";"T";1;3;"at_home";"other";"course";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";3;3;4;2;4;3;4;"10";"10";10
+"MS";"M";18;"U";"LE3";"T";4;4;"teacher";"services";"other";"mother";2;3;0;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";4;2;2;2;2;5;0;"13";"13";13
+"MS";"F";17;"R";"GT3";"T";1;1;"other";"services";"reputation";"mother";3;1;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";5;2;1;1;2;1;0;"7";"6";0
+"MS";"F";18;"U";"GT3";"T";2;3;"at_home";"services";"course";"father";2;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";5;2;3;1;2;4;0;"11";"10";10
+"MS";"F";18;"R";"GT3";"T";4;4;"other";"teacher";"other";"father";3;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"yes";3;2;2;4;2;5;10;"14";"12";11
+"MS";"F";19;"U";"LE3";"T";3;2;"services";"services";"home";"other";2;2;2;"no";"no";"no";"yes";"yes";"yes";"no";"yes";3;2;2;1;1;3;4;"7";"7";9
+"MS";"M";18;"R";"LE3";"T";1;2;"at_home";"services";"other";"father";3;1;0;"no";"yes";"yes";"yes";"yes";"no";"yes";"yes";4;3;3;2;3;3;3;"14";"12";12
+"MS";"F";17;"U";"GT3";"T";2;2;"other";"at_home";"home";"mother";1;3;0;"no";"no";"no";"yes";"yes";"yes";"no";"yes";3;4;3;1;1;3;8;"13";"11";11
+"MS";"F";17;"R";"GT3";"T";1;2;"other";"other";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;5;5;1;3;1;14;"6";"5";5
+"MS";"F";18;"R";"LE3";"T";4;4;"other";"other";"reputation";"mother";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;4;4;1;1;1;0;"19";"18";19
+"MS";"F";18;"R";"GT3";"T";1;1;"other";"other";"home";"mother";4;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;3;2;1;2;4;2;"8";"8";10
+"MS";"F";20;"U";"GT3";"T";4;2;"health";"other";"course";"other";2;3;2;"no";"yes";"yes";"no";"no";"yes";"yes";"yes";5;4;3;1;1;3;4;"15";"14";15
+"MS";"F";18;"R";"LE3";"T";4;4;"teacher";"services";"course";"mother";1;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";5;4;3;3;4;2;4;"8";"9";10
+"MS";"F";18;"U";"GT3";"T";3;3;"other";"other";"home";"mother";1;2;0;"no";"no";"yes";"no";"yes";"yes";"yes";"yes";4;1;3;1;2;1;0;"15";"15";15
+"MS";"F";17;"R";"GT3";"T";3;1;"at_home";"other";"reputation";"mother";1;2;0;"no";"yes";"yes";"yes";"no";"yes";"yes";"no";4;5;4;2;3;1;17;"10";"10";10
+"MS";"M";18;"U";"GT3";"T";4;4;"teacher";"teacher";"home";"father";1;2;0;"no";"no";"yes";"yes";"no";"yes";"yes";"no";3;2;4;1;4;2;4;"15";"14";14
+"MS";"M";18;"R";"GT3";"T";2;1;"other";"other";"other";"mother";2;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;4;3;1;3;5;5;"7";"6";7
+"MS";"M";17;"U";"GT3";"T";2;3;"other";"services";"home";"father";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;4;3;1;1;3;2;"11";"11";10
+"MS";"M";19;"R";"GT3";"T";1;1;"other";"services";"other";"mother";2;1;1;"no";"no";"no";"no";"yes";"yes";"no";"no";4;3;2;1;3;5;0;"6";"5";0
+"MS";"M";18;"R";"GT3";"T";4;2;"other";"other";"home";"father";2;1;1;"no";"no";"yes";"no";"yes";"yes";"no";"no";5;4;3;4;3;3;14;"6";"5";5
+"MS";"F";18;"R";"GT3";"T";2;2;"at_home";"other";"other";"mother";2;3;0;"no";"no";"yes";"no";"yes";"yes";"no";"no";5;3;3;1;3;4;2;"10";"9";10
+"MS";"F";18;"R";"GT3";"T";4;4;"teacher";"at_home";"reputation";"mother";3;1;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;4;3;2;2;5;7;"6";"5";6
+"MS";"F";19;"R";"GT3";"T";2;3;"services";"other";"course";"mother";1;3;1;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;4;2;1;2;5;0;"7";"5";0
+"MS";"F";18;"U";"LE3";"T";3;1;"teacher";"services";"course";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;3;4;1;1;1;0;"7";"9";8
+"MS";"F";18;"U";"GT3";"T";1;1;"other";"other";"course";"mother";2;2;1;"no";"no";"no";"yes";"yes";"yes";"no";"no";1;1;1;1;1;5;0;"6";"5";0
+"MS";"M";20;"U";"LE3";"A";2;2;"services";"services";"course";"other";1;2;2;"no";"yes";"yes";"no";"yes";"yes";"no";"no";5;5;4;4;5;4;11;"9";"9";9
+"MS";"M";17;"U";"LE3";"T";3;1;"services";"services";"course";"mother";2;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";2;4;5;3;4;2;3;"14";"16";16
+"MS";"M";21;"R";"GT3";"T";1;1;"other";"other";"course";"other";1;1;3;"no";"no";"no";"no";"no";"yes";"no";"no";5;5;3;3;3;3;3;"10";"8";7
+"MS";"M";18;"R";"LE3";"T";3;2;"services";"other";"course";"mother";3;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;4;1;3;4;5;0;"11";"12";10
+"MS";"M";19;"U";"LE3";"T";1;1;"other";"at_home";"course";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;2;3;3;3;5;5;"8";"9";9</script>
+<script type="text/plain" id="data-por">school;sex;age;address;famsize;Pstatus;Medu;Fedu;Mjob;Fjob;reason;guardian;traveltime;studytime;failures;schoolsup;famsup;paid;activities;nursery;higher;internet;romantic;famrel;freetime;goout;Dalc;Walc;health;absences;G1;G2;G3
+"GP";"F";18;"U";"GT3";"A";4;4;"at_home";"teacher";"course";"mother";2;2;0;"yes";"no";"no";"no";"yes";"yes";"no";"no";4;3;4;1;1;3;4;"0";"11";11
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"other";"course";"father";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;3;3;1;1;3;2;"9";"11";11
+"GP";"F";15;"U";"LE3";"T";1;1;"at_home";"other";"other";"mother";1;2;0;"yes";"no";"no";"no";"yes";"yes";"yes";"no";4;3;2;2;3;3;6;"12";"13";12
+"GP";"F";15;"U";"GT3";"T";4;2;"health";"services";"home";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";3;2;2;1;1;5;0;"14";"14";14
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"other";"home";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;2;1;2;5;0;"11";"13";13
+"GP";"M";16;"U";"LE3";"T";4;3;"services";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;2;1;2;5;6;"12";"12";13
+"GP";"M";16;"U";"LE3";"T";2;2;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;1;3;0;"13";"12";13
+"GP";"F";17;"U";"GT3";"A";4;4;"other";"teacher";"home";"mother";2;2;0;"yes";"yes";"no";"no";"yes";"yes";"no";"no";4;1;4;1;1;1;2;"10";"13";13
+"GP";"M";15;"U";"LE3";"A";3;2;"services";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;2;1;1;1;0;"15";"16";17
+"GP";"M";15;"U";"GT3";"T";3;4;"other";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;5;1;1;1;5;0;"12";"12";13
+"GP";"F";15;"U";"GT3";"T";4;4;"teacher";"health";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;3;3;1;2;2;2;"14";"14";14
+"GP";"F";15;"U";"GT3";"T";2;1;"services";"other";"reputation";"father";3;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;2;2;1;1;4;0;"10";"12";13
+"GP";"M";15;"U";"LE3";"T";4;4;"health";"services";"course";"father";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;3;5;0;"12";"13";12
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"other";"course";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;3;1;2;3;0;"12";"12";13
+"GP";"M";15;"U";"GT3";"A";2;2;"other";"other";"home";"other";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;5;2;1;1;3;0;"14";"14";15
+"GP";"F";16;"U";"GT3";"T";4;4;"health";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;2;2;6;"17";"17";17
+"GP";"F";16;"U";"GT3";"T";4;4;"services";"services";"reputation";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;2;3;1;2;2;10;"13";"13";14
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"other";"reputation";"mother";3;2;0;"yes";"yes";"no";"yes";"yes";"yes";"no";"no";5;3;2;1;1;4;2;"13";"14";14
+"GP";"M";17;"U";"GT3";"T";3;2;"services";"services";"course";"mother";1;1;3;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;5;5;2;4;5;2;"8";"8";7
+"GP";"M";16;"U";"LE3";"T";4;3;"health";"other";"home";"father";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;1;3;1;3;5;6;"12";"12";12
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"other";"reputation";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;1;1;1;1;0;"12";"13";14
+"GP";"M";15;"U";"GT3";"T";4;4;"health";"health";"other";"father";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";5;4;2;1;1;5;0;"11";"12";12
+"GP";"M";16;"U";"LE3";"T";4;2;"teacher";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;5;1;1;3;5;0;"12";"13";14
+"GP";"M";16;"U";"LE3";"T";2;2;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;4;2;4;5;2;"10";"10";10
+"GP";"F";15;"R";"GT3";"T";2;4;"services";"health";"course";"mother";1;3;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;2;"10";"11";10
+"GP";"F";16;"U";"GT3";"T";2;2;"services";"services";"home";"mother";1;1;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";1;2;2;1;3;5;6;"10";"11";12
+"GP";"M";15;"U";"GT3";"T";2;2;"other";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;2;1;2;5;8;"11";"12";12
+"GP";"M";15;"U";"GT3";"T";4;2;"health";"services";"other";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";2;2;4;2;4;1;0;"11";"11";11
+"GP";"M";16;"U";"LE3";"A";3;4;"services";"other";"home";"mother";1;2;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;5;2;"12";"12";13
+"GP";"M";16;"U";"GT3";"T";4;4;"teacher";"teacher";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;4;5;5;5;5;4;"12";"11";12
+"GP";"M";15;"U";"GT3";"T";4;4;"health";"services";"home";"mother";1;2;0;"no";"yes";"yes";"no";"no";"yes";"yes";"no";5;4;2;3;4;5;0;"10";"11";11
+"GP";"M";15;"U";"GT3";"T";4;4;"services";"services";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;1;1;1;5;2;"15";"15";15
+"GP";"M";15;"R";"GT3";"T";4;3;"teacher";"at_home";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;5;2;1;1;5;0;"13";"14";15
+"GP";"M";15;"U";"LE3";"T";3;3;"other";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;3;2;1;1;2;0;"13";"12";12
+"GP";"M";16;"U";"GT3";"T";3;2;"other";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;4;3;1;1;5;4;"12";"12";12
+"GP";"F";15;"U";"GT3";"T";2;3;"other";"other";"other";"father";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";3;5;1;1;1;5;4;"11";"11";11
+"GP";"M";15;"U";"LE3";"T";4;3;"teacher";"services";"home";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;3;1;1;4;0;"14";"14";14
+"GP";"M";16;"R";"GT3";"A";4;4;"other";"teacher";"reputation";"mother";2;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";2;4;3;1;1;5;4;"13";"13";13
+"GP";"F";15;"R";"GT3";"T";3;4;"services";"health";"course";"mother";1;3;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;2;"11";"12";12
+"GP";"F";15;"R";"GT3";"T";2;2;"at_home";"other";"reputation";"mother";1;1;0;"yes";"yes";"no";"yes";"yes";"yes";"no";"no";4;3;1;1;1;2;8;"14";"13";12
+"GP";"F";16;"U";"LE3";"T";2;2;"other";"other";"home";"mother";2;2;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";3;3;3;1;2;3;16;"11";"11";10
+"GP";"M";15;"U";"LE3";"T";4;4;"teacher";"other";"home";"other";1;1;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";5;4;3;2;4;5;8;"10";"11";11
+"GP";"M";15;"U";"GT3";"T";4;4;"services";"teacher";"course";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;1;5;0;"14";"15";15
+"GP";"M";15;"U";"GT3";"T";2;2;"services";"services";"course";"father";1;1;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;1;1;1;1;0;"9";"10";10
+"GP";"F";16;"U";"LE3";"T";2;2;"other";"at_home";"course";"father";2;2;1;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;2;5;14;"10";"11";11
+"GP";"F";15;"U";"LE3";"A";4;3;"other";"other";"course";"mother";1;2;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"yes";5;2;2;1;1;5;4;"10";"11";11
+"GP";"F";16;"U";"LE3";"A";3;3;"other";"services";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";2;3;5;1;4;3;6;"13";"12";13
+"GP";"M";16;"U";"GT3";"T";4;3;"health";"services";"reputation";"mother";1;4;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;2;2;1;1;2;2;"17";"17";17
+"GP";"M";15;"U";"GT3";"T";4;2;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;3;2;2;5;4;"11";"12";13
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"teacher";"other";"father";1;2;0;"yes";"yes";"no";"yes";"no";"yes";"yes";"no";4;4;4;1;1;3;2;"13";"12";12
+"GP";"F";16;"U";"LE3";"T";2;2;"services";"services";"course";"mother";3;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;2;3;4;0;"14";"13";13
+"GP";"F";15;"U";"LE3";"T";4;2;"health";"other";"other";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;5;0;"16";"14";16
+"GP";"M";15;"U";"LE3";"A";4;2;"health";"health";"other";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"no";"no";5;5;5;3;4;5;4;"10";"9";9
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"services";"course";"mother";1;1;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";3;3;4;2;3;5;0;"13";"12";12
+"GP";"F";15;"U";"LE3";"A";3;3;"other";"other";"other";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;3;4;4;4;1;0;"13";"12";13
+"GP";"F";16;"U";"GT3";"A";2;1;"other";"other";"other";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;4;1;1;2;2;"12";"13";12
+"GP";"F";15;"U";"GT3";"A";4;3;"services";"services";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;1;0;"15";"14";15
+"GP";"M";15;"U";"GT3";"T";4;4;"teacher";"health";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";3;2;2;1;1;5;8;"15";"15";16
+"GP";"M";15;"U";"LE3";"T";1;2;"other";"at_home";"home";"father";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;0;"14";"13";14
+"GP";"F";16;"U";"GT3";"T";4;2;"services";"other";"course";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;2;3;1;1;5;2;"16";"15";16
+"GP";"F";16;"R";"GT3";"T";4;4;"health";"teacher";"other";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";2;4;4;2;3;4;0;"17";"16";16
+"GP";"F";16;"U";"GT3";"T";1;1;"services";"services";"course";"father";4;1;0;"yes";"yes";"no";"yes";"no";"yes";"yes";"yes";5;5;5;5;5;5;0;"10";"10";16
+"GP";"F";16;"U";"LE3";"T";1;2;"other";"services";"reputation";"father";1;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";4;4;3;1;1;1;0;"13";"13";10
+"GP";"F";16;"U";"GT3";"T";4;3;"teacher";"health";"home";"mother";1;3;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";3;4;4;2;4;4;0;"14";"13";13
+"GP";"F";15;"U";"LE3";"T";4;3;"services";"services";"reputation";"father";1;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"yes";4;4;4;2;4;2;0;"13";"12";12
+"GP";"F";16;"U";"LE3";"T";4;3;"teacher";"services";"course";"mother";3;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;3;1;2;1;2;"16";"15";16
+"GP";"M";15;"U";"GT3";"A";4;4;"other";"services";"reputation";"mother";1;4;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";1;3;3;5;5;3;0;"11";"12";12
+"GP";"F";16;"U";"GT3";"T";3;1;"services";"other";"course";"mother";1;4;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;2;5;0;"10";"9";10
+"GP";"F";15;"R";"LE3";"T";2;2;"health";"services";"reputation";"mother";2;2;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";4;1;3;1;3;4;0;"11";"10";11
+"GP";"F";15;"R";"LE3";"T";3;1;"other";"other";"reputation";"father";2;4;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";4;4;2;2;3;3;6;"15";"15";15
+"GP";"M";16;"U";"GT3";"T";3;1;"other";"other";"reputation";"father";2;4;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;2;1;1;5;2;"13";"11";11
+"GP";"M";15;"U";"GT3";"T";4;2;"other";"other";"course";"mother";1;4;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;3;3;1;1;3;0;"11";"9";10
+"GP";"F";15;"R";"GT3";"T";1;1;"other";"other";"reputation";"mother";1;2;0;"yes";"yes";"no";"no";"no";"yes";"yes";"yes";3;3;4;2;4;5;2;"13";"11";11
+"GP";"M";16;"U";"GT3";"T";3;1;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";5;3;2;2;2;5;0;"13";"13";14
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"services";"home";"mother";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;4;5;4;"11";"11";11
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;3;5;0;"11";"11";11
+"GP";"M";15;"U";"GT3";"T";4;0;"teacher";"other";"course";"mother";2;4;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;4;3;1;1;1;0;"12";"11";11
+"GP";"F";16;"U";"GT3";"T";2;2;"other";"other";"reputation";"mother";1;4;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;2;3;1;3;3;1;"13";"13";13
+"GP";"M";17;"U";"GT3";"T";2;1;"other";"other";"home";"mother";2;1;3;"yes";"yes";"no";"yes";"yes";"no";"yes";"no";4;5;1;1;1;3;0;"9";"9";10
+"GP";"F";16;"U";"GT3";"T";3;4;"at_home";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";2;4;3;1;2;3;14;"12";"11";11
+"GP";"M";15;"U";"GT3";"T";2;3;"other";"services";"course";"father";1;1;0;"yes";"yes";"no";"yes";"no";"yes";"yes";"yes";3;2;2;1;3;3;0;"11";"11";12
+"GP";"M";15;"U";"GT3";"T";2;3;"other";"other";"home";"mother";1;3;0;"yes";"no";"no";"no";"no";"yes";"yes";"no";5;3;2;1;2;5;2;"10";"9";9
+"GP";"F";15;"U";"LE3";"T";3;2;"services";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;1;5;4;"12";"11";11
+"GP";"M";15;"U";"LE3";"T";2;2;"services";"services";"home";"mother";2;2;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";5;3;3;1;3;4;2;"13";"12";13
+"GP";"F";15;"U";"GT3";"T";1;1;"other";"other";"home";"father";1;2;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";4;3;2;2;3;4;2;"13";"12";12
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"services";"reputation";"father";2;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;4;4;2;3;5;4;"12";"11";12
+"GP";"F";16;"U";"LE3";"T";2;2;"at_home";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;4;1;2;2;6;"13";"11";11
+"GP";"F";15;"U";"GT3";"T";4;2;"other";"other";"reputation";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;3;1;4;"15";"15";15
+"GP";"M";16;"U";"GT3";"T";2;2;"services";"other";"reputation";"father";2;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;4;2;1;1;3;6;"12";"10";11
+"GP";"M";16;"U";"LE3";"A";4;4;"teacher";"health";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;1;3;3;5;5;6;"9";"9";10
+"GP";"F";16;"U";"GT3";"T";3;3;"other";"other";"home";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;3;1;3;4;2;"9";"11";11
+"GP";"F";15;"U";"GT3";"T";4;3;"services";"other";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;5;5;1;3;1;6;"14";"13";13
+"GP";"F";16;"U";"LE3";"T";3;1;"other";"other";"home";"father";1;2;0;"yes";"yes";"no";"no";"yes";"yes";"no";"no";3;3;3;2;3;2;0;"12";"13";12
+"GP";"F";16;"U";"GT3";"T";4;2;"teacher";"services";"home";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;1;2;"13";"14";14
+"GP";"M";15;"U";"LE3";"T";2;2;"services";"health";"reputation";"mother";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;4;1;1;4;2;"11";"12";12
+"GP";"F";15;"R";"GT3";"T";1;1;"at_home";"other";"home";"mother";2;4;0;"yes";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;1;2;1;1;1;4;"13";"13";13
+"GP";"M";16;"R";"GT3";"T";4;3;"services";"other";"reputation";"mother";2;1;0;"yes";"yes";"yes";"yes";"no";"yes";"yes";"no";3;3;3;1;1;4;6;"9";"11";11
+"GP";"F";16;"U";"GT3";"T";2;1;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";4;3;5;1;1;5;0;"13";"12";12
+"GP";"F";16;"U";"GT3";"T";4;4;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;3;4;1;2;1;4;"12";"13";13
+"GP";"F";16;"U";"GT3";"T";4;3;"other";"at_home";"course";"mother";1;3;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";5;3;5;1;1;3;2;"12";"13";13
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"services";"other";"mother";1;1;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;5;5;5;5;4;12;"9";"9";8
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"teacher";"other";"father";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;3;1;1;4;0;"16";"16";16
+"GP";"M";15;"U";"GT3";"T";4;4;"services";"other";"course";"mother";1;1;0;"no";"yes";"yes";"yes";"no";"yes";"yes";"no";5;3;3;1;1;5;2;"12";"13";12
+"GP";"F";15;"U";"GT3";"T";3;2;"services";"other";"home";"mother";2;2;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;5;1;1;2;16;"11";"10";10
+"GP";"M";15;"U";"GT3";"A";3;4;"services";"other";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;4;1;1;1;0;"16";"16";16
+"GP";"F";15;"U";"GT3";"A";3;3;"other";"health";"reputation";"father";1;4;0;"yes";"no";"no";"no";"yes";"yes";"no";"no";4;3;3;1;1;4;10;"10";"10";10
+"GP";"F";15;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;4;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";5;1;2;1;1;3;4;"10";"10";10
+"GP";"M";16;"U";"GT3";"T";3;3;"services";"other";"home";"father";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;5;4;"13";"14";14
+"GP";"M";15;"R";"GT3";"T";4;4;"other";"other";"home";"father";4;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";1;3;5;3;5;1;8;"12";"10";11
+"GP";"F";16;"U";"LE3";"T";4;4;"health";"health";"other";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;4;5;1;1;4;2;"15";"15";14
+"GP";"M";15;"U";"LE3";"A";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;5;3;1;1;4;4;"13";"14";14
+"GP";"F";16;"R";"GT3";"T";3;3;"services";"other";"reputation";"father";1;3;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";4;1;2;1;1;2;4;"11";"11";11
+"GP";"F";16;"U";"GT3";"T";2;2;"at_home";"other";"home";"mother";1;2;1;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";3;1;2;1;1;5;12;"8";"10";10
+"GP";"M";15;"U";"LE3";"T";4;2;"teacher";"other";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;5;2;1;1;3;10;"18";"17";18
+"GP";"M";15;"R";"GT3";"T";2;1;"health";"services";"reputation";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;4;2;1;1;5;4;"10";"9";10
+"GP";"M";16;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;4;1;2;5;6;"16";"14";14
+"GP";"M";15;"U";"GT3";"T";4;4;"other";"teacher";"reputation";"father";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";4;4;3;1;1;2;4;"16";"15";16
+"GP";"M";16;"U";"GT3";"T";3;3;"other";"services";"home";"father";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;4;2;1;1;5;6;"14";"14";15
+"GP";"M";17;"R";"GT3";"T";1;3;"other";"other";"course";"father";3;2;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;2;4;1;4;5;14;"12";"11";11
+"GP";"M";15;"U";"GT3";"T";3;4;"other";"other";"reputation";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;4;3;1;2;4;2;"14";"13";14
+"GP";"F";15;"U";"GT3";"T";1;2;"at_home";"services";"course";"mother";1;2;0;"no";"no";"no";"no";"no";"yes";"yes";"no";3;2;3;1;2;1;0;"14";"14";14
+"GP";"M";15;"U";"GT3";"T";2;2;"services";"services";"home";"father";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;5;4;1;2;5;6;"14";"13";13
+"GP";"F";16;"U";"LE3";"T";2;4;"other";"health";"course";"father";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;2;2;1;2;5;2;"14";"12";13
+"GP";"M";16;"U";"GT3";"T";4;4;"health";"other";"course";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;4;4;1;4;5;4;"12";"13";13
+"GP";"F";16;"U";"GT3";"T";2;2;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;4;4;1;1;5;0;"12";"11";11
+"GP";"M";15;"U";"GT3";"T";3;4;"services";"services";"home";"father";1;1;0;"yes";"no";"no";"no";"yes";"yes";"yes";"no";5;5;5;3;2;5;2;"9";"9";9
+"GP";"F";15;"U";"LE3";"A";3;4;"other";"other";"home";"mother";1;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;2;1;1;1;0;"10";"11";11
+"GP";"F";19;"U";"GT3";"T";0;1;"at_home";"other";"course";"other";1;2;2;"no";"yes";"no";"no";"no";"no";"no";"no";3;4;2;1;1;5;0;"9";"10";11
+"GP";"M";16;"R";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;5;5;2;5;4;8;"14";"14";15
+"GP";"M";16;"U";"GT3";"T";2;3;"other";"other";"course";"mother";2;3;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";3;2;3;2;2;1;4;"13";"12";13
+"GP";"F";15;"R";"GT3";"T";3;4;"services";"teacher";"course";"father";2;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;2;2;2;2;5;0;"10";"11";12
+"GP";"F";18;"U";"GT3";"T";2;1;"services";"other";"reputation";"mother";1;2;3;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";5;4;5;1;3;5;10;"10";"9";8
+"GP";"F";17;"U";"LE3";"A";2;1;"other";"other";"course";"mother";3;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;2;2;1;2;5;8;"11";"10";11
+"GP";"F";15;"U";"GT3";"T";1;1;"at_home";"other";"course";"mother";3;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;3;3;1;2;4;6;"11";"12";13
+"GP";"F";17;"U";"LE3";"T";2;2;"other";"other";"course";"father";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";3;4;4;1;3;5;2;"13";"12";12
+"GP";"F";16;"U";"GT3";"A";3;4;"services";"other";"course";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;2;1;1;4;5;12;"15";"13";14
+"GP";"M";16;"U";"GT3";"T";2;1;"at_home";"other";"course";"mother";4;1;0;"no";"no";"no";"no";"yes";"yes";"no";"no";3;2;1;1;1;2;4;"9";"9";11
+"GP";"F";16;"U";"GT3";"A";2;2;"other";"other";"home";"mother";1;1;1;"no";"no";"no";"no";"yes";"yes";"no";"no";5;3;4;1;1;5;12;"13";"11";11
+"GP";"M";15;"R";"GT3";"T";3;4;"at_home";"teacher";"course";"mother";4;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";5;3;3;1;1;5;2;"12";"11";11
+"GP";"F";15;"U";"GT3";"T";4;4;"services";"at_home";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;1;1;5;4;"13";"14";15
+"GP";"M";17;"R";"GT3";"T";3;4;"at_home";"other";"course";"mother";3;2;0;"no";"no";"no";"no";"yes";"yes";"no";"no";5;4;5;2;4;5;2;"10";"9";10
+"GP";"F";16;"R";"GT3";"T";1;1;"at_home";"other";"course";"mother";4;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";5;1;3;1;1;3;0;"14";"13";13
+"GP";"M";18;"U";"LE3";"T";3;1;"services";"services";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;3;4;4;5;4;2;"11";"11";12
+"GP";"F";18;"U";"GT3";"A";3;2;"other";"services";"course";"other";1;3;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;3;3;5;1;5;10;"12";"11";11
+"GP";"F";16;"R";"GT3";"T";1;1;"other";"services";"reputation";"mother";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";3;3;3;1;2;1;8;"12";"11";11
+"GP";"F";16;"U";"GT3";"A";3;3;"other";"other";"course";"other";2;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;3;2;1;1;5;4;"9";"9";10
+"GP";"M";16;"U";"LE3";"T";1;1;"services";"other";"course";"mother";1;2;2;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;4;4;1;3;5;0;"10";"10";10
+"GP";"F";15;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;2;1;1;5;6;"13";"14";14
+"GP";"F";15;"R";"GT3";"T";1;1;"other";"other";"course";"mother";3;1;1;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;5;5;1;1;1;2;"8";"9";9
+"GP";"M";15;"U";"GT3";"T";4;3;"teacher";"services";"course";"father";2;4;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";2;2;2;1;1;3;6;"9";"11";11
+"GP";"F";15;"U";"GT3";"A";3;3;"services";"services";"home";"mother";1;2;0;"no";"no";"no";"no";"no";"yes";"no";"yes";1;3;2;2;3;1;24;"9";"8";9
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"services";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;3;5;0;"15";"13";13
+"GP";"M";16;"U";"LE3";"T";2;2;"services";"services";"reputation";"father";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";2;3;3;2;2;2;4;"12";"11";11
+"GP";"F";15;"U";"GT3";"T";4;4;"teacher";"services";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;2;1;1;5;2;"13";"13";13
+"GP";"F";16;"U";"LE3";"T";1;1;"at_home";"at_home";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;4;4;3;3;1;4;"10";"11";11
+"GP";"M";17;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;5;1;2;5;22;"9";"7";6
+"GP";"F";15;"U";"GT3";"T";1;1;"other";"services";"course";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;2;1;2;5;0;"12";"12";12
+"GP";"F";15;"U";"LE3";"A";2;1;"at_home";"other";"home";"mother";2;1;0;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";4;4;2;1;1;5;0;"11";"10";10
+"GP";"F";15;"U";"GT3";"T";3;2;"health";"services";"home";"father";1;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;3;2;1;1;3;2;"11";"11";11
+"GP";"F";15;"U";"GT3";"T";1;2;"at_home";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";4;3;2;1;1;5;6;"13";"12";13
+"GP";"F";15;"U";"GT3";"T";1;2;"at_home";"services";"course";"father";1;2;0;"no";"no";"no";"no";"no";"yes";"no";"yes";2;3;4;2;4;1;6;"11";"11";11
+"GP";"M";16;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";3;3;2;2;1;5;16;"9";"9";8
+"GP";"M";15;"U";"LE3";"A";2;1;"services";"other";"course";"mother";4;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;5;5;2;5;5;0;"12";"11";11
+"GP";"M";18;"U";"LE3";"T";1;1;"other";"other";"course";"mother";1;1;2;"no";"no";"no";"no";"yes";"no";"yes";"yes";2;3;5;2;5;4;0;"11";"9";0
+"GP";"M";16;"U";"LE3";"T";2;1;"at_home";"other";"course";"mother";1;1;1;"no";"no";"no";"yes";"yes";"yes";"no";"yes";4;4;4;3;5;5;6;"9";"10";10
+"GP";"F";15;"R";"GT3";"T";3;3;"services";"services";"reputation";"other";2;3;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";4;2;1;2;3;3;2;"13";"13";13
+"GP";"M";19;"U";"GT3";"T";3;2;"services";"at_home";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";4;5;4;1;1;4;6;"11";"9";11
+"GP";"F";17;"U";"GT3";"T";4;4;"other";"teacher";"course";"mother";1;1;0;"yes";"yes";"no";"no";"yes";"yes";"no";"yes";4;2;1;1;1;4;0;"13";"13";13
+"GP";"M";15;"R";"GT3";"T";2;3;"at_home";"services";"course";"mother";1;2;0;"yes";"no";"yes";"yes";"yes";"yes";"no";"no";4;4;4;1;1;1;0;"7";"8";8
+"GP";"M";17;"R";"LE3";"T";1;2;"other";"other";"reputation";"mother";1;1;3;"no";"no";"no";"no";"yes";"yes";"no";"no";2;2;2;3;3;5;14;"9";"8";10
+"GP";"F";18;"R";"GT3";"T";1;1;"at_home";"other";"course";"mother";3;1;3;"no";"yes";"no";"yes";"no";"yes";"no";"no";5;2;5;1;5;4;6;"11";"10";11
+"GP";"M";16;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";3;1;0;"no";"no";"no";"no";"no";"yes";"no";"no";4;2;2;1;2;3;4;"12";"10";11
+"GP";"M";16;"U";"GT3";"T";3;3;"other";"services";"course";"father";1;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;5;5;4;4;5;0;"10";"10";1
+"GP";"M";16;"U";"LE3";"T";1;2;"health";"services";"course";"mother";2;1;2;"no";"no";"no";"no";"no";"yes";"yes";"no";4;4;5;3;5;5;0;"9";"8";10
+"GP";"M";17;"R";"LE3";"T";2;1;"at_home";"other";"course";"mother";2;1;1;"no";"no";"yes";"yes";"yes";"no";"yes";"yes";3;3;2;2;2;5;8;"8";"8";9
+"GP";"M";17;"R";"GT3";"T";3;2;"other";"other";"course";"mother";2;2;2;"yes";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;4;1;4;3;4;"7";"6";8
+"GP";"M";15;"U";"LE3";"T";1;2;"other";"other";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";4;4;4;2;4;5;2;"8";"9";10
+"GP";"M";16;"U";"GT3";"T";1;3;"at_home";"services";"course";"father";1;1;1;"no";"no";"no";"no";"yes";"no";"yes";"no";5;3;3;1;4;2;2;"9";"8";8
+"GP";"M";17;"R";"LE3";"T";1;1;"other";"services";"course";"mother";4;2;0;"no";"no";"no";"yes";"yes";"no";"no";"yes";5;3;5;1;5;5;0;"8";"8";8
+"GP";"M";17;"U";"GT3";"T";3;2;"services";"services";"course";"mother";2;1;3;"no";"yes";"no";"yes";"no";"no";"no";"no";4;5;2;1;1;2;10;"8";"7";8
+"GP";"M";16;"U";"GT3";"T";2;2;"other";"other";"course";"father";1;2;0;"no";"no";"no";"no";"yes";"no";"yes";"no";4;3;5;2;4;4;0;"9";"10";11
+"GP";"F";16;"U";"GT3";"T";4;2;"health";"services";"home";"father";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;2;3;1;1;3;0;"17";"17";18
+"GP";"F";16;"U";"GT3";"T";2;2;"other";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;1;5;1;1;4;0;"12";"12";13
+"GP";"F";16;"U";"GT3";"T";4;4;"health";"health";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;2;1;1;3;0;"16";"16";17
+"GP";"M";16;"U";"GT3";"T";3;4;"other";"other";"course";"father";3;1;1;"no";"yes";"no";"yes";"no";"yes";"yes";"no";3;4;5;2;4;2;4;"9";"9";10
+"GP";"M";16;"U";"GT3";"T";1;0;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;2;1;1;3;0;"16";"17";18
+"GP";"M";17;"U";"LE3";"T";4;4;"teacher";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;4;4;1;3;5;0;"11";"9";10
+"GP";"F";16;"U";"GT3";"T";1;3;"at_home";"services";"home";"mother";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;3;5;1;1;3;0;"14";"13";13
+"GP";"F";16;"U";"LE3";"T";3;3;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;4;5;1;1;4;0;"14";"14";15
+"GP";"M";17;"U";"LE3";"T";4;3;"teacher";"other";"course";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;4;4;4;4;4;0;"10";"11";11
+"GP";"F";16;"U";"GT3";"T";2;2;"services";"other";"reputation";"mother";2;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";3;4;4;1;4;5;0;"13";"12";14
+"GP";"M";17;"U";"GT3";"T";3;3;"other";"other";"reputation";"father";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;3;4;1;4;4;4;"11";"9";10
+"GP";"M";16;"R";"GT3";"T";4;2;"teacher";"services";"other";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;3;4;3;8;"10";"9";11
+"GP";"M";17;"U";"GT3";"T";4;3;"other";"other";"course";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";5;2;3;1;1;2;4;"11";"11";13
+"GP";"M";16;"U";"GT3";"T";4;3;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";3;4;3;2;3;3;4;"11";"10";11
+"GP";"M";16;"U";"GT3";"T";3;3;"services";"other";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;2;3;1;2;3;0;"11";"12";13
+"GP";"F";17;"U";"GT3";"T";2;4;"services";"services";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;4;2;2;3;5;0;"17";"18";17
+"GP";"F";17;"U";"LE3";"T";3;3;"other";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;2;3;1;32;"14";"13";14
+"GP";"F";16;"U";"GT3";"T";3;2;"other";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";1;2;2;1;2;1;8;"14";"15";16
+"GP";"M";17;"U";"GT3";"T";3;3;"services";"services";"other";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;4;2;3;4;6;"11";"13";14
+"GP";"M";16;"U";"GT3";"T";1;2;"services";"services";"other";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";3;3;3;1;2;3;0;"10";"9";11
+"GP";"M";16;"U";"LE3";"T";2;1;"other";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;2;3;1;2;5;0;"13";"14";16
+"GP";"F";17;"U";"GT3";"A";3;3;"health";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";3;3;3;1;3;3;10;"12";"13";14
+"GP";"M";17;"R";"GT3";"T";1;2;"at_home";"other";"home";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"no";"no";3;1;3;1;5;3;6;"9";"9";10
+"GP";"F";16;"U";"GT3";"T";2;3;"services";"services";"course";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;2;6;"12";"12";13
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"services";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;3;0;"12";"11";12
+"GP";"M";17;"U";"GT3";"T";1;2;"at_home";"services";"other";"other";2;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;4;4;4;5;5;16;"10";"11";12
+"GP";"M";16;"R";"GT3";"T";3;3;"services";"services";"reputation";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;2;3;4;5;0;"11";"10";10
+"GP";"M";16;"U";"GT3";"T";2;3;"other";"other";"home";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;3;3;1;1;3;0;"13";"12";12
+"GP";"F";17;"U";"LE3";"T";2;4;"services";"services";"course";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;2;1;1;5;8;"14";"15";16
+"GP";"M";17;"U";"GT3";"T";4;4;"services";"teacher";"home";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;2;3;1;2;5;4;"13";"13";14
+"GP";"M";16;"R";"LE3";"T";3;3;"teacher";"other";"home";"father";3;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;3;4;3;5;3;16;"10";"11";12
+"GP";"F";17;"U";"GT3";"T";4;4;"services";"teacher";"home";"mother";2;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;4;2;3;2;30;"14";"15";16
+"GP";"F";16;"U";"LE3";"T";4;4;"teacher";"teacher";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;5;2;1;2;3;0;"11";"10";11
+"GP";"F";16;"U";"GT3";"T";4;3;"health";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;5;1;5;2;2;"14";"14";15
+"GP";"F";16;"U";"GT3";"T";2;3;"other";"other";"reputation";"mother";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"no";"no";4;4;3;1;3;4;4;"11";"12";12
+"GP";"F";17;"U";"GT3";"T";1;1;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"no";"no";4;4;4;1;3;1;0;"14";"15";15
+"GP";"F";17;"R";"GT3";"T";2;2;"other";"other";"reputation";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;3;2;1;2;3;21;"13";"13";13
+"GP";"F";16;"R";"GT3";"T";2;2;"services";"services";"reputation";"mother";2;4;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";5;3;5;1;1;5;6;"13";"13";13
+"GP";"F";17;"U";"GT3";"T";3;4;"at_home";"services";"home";"mother";1;3;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;4;3;3;4;5;14;"8";"9";8
+"GP";"F";16;"U";"GT3";"A";3;1;"services";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";2;3;3;2;2;4;2;"11";"11";12
+"GP";"F";16;"U";"GT3";"T";4;3;"teacher";"other";"other";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";1;3;2;1;1;1;4;"14";"15";15
+"GP";"F";16;"U";"GT3";"T";1;1;"at_home";"other";"home";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;2;1;4;5;2;"12";"13";13
+"GP";"F";17;"R";"GT3";"T";4;3;"teacher";"other";"reputation";"mother";2;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;2;1;1;4;0;"11";"12";12
+"GP";"F";19;"U";"GT3";"T";3;3;"other";"other";"reputation";"other";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;2;3;4;"12";"12";12
+"GP";"M";17;"U";"LE3";"T";4;4;"services";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;3;5;4;5;3;15;"13";"12";12
+"GP";"F";16;"U";"GT3";"A";2;2;"other";"other";"reputation";"mother";1;2;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";3;3;4;1;1;4;0;"13";"13";13
+"GP";"M";18;"U";"GT3";"T";2;2;"services";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;4;4;2;4;5;10;"12";"11";11
+"GP";"F";17;"R";"LE3";"T";4;4;"services";"other";"other";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";5;2;1;1;2;3;6;"12";"11";11
+"GP";"F";17;"U";"LE3";"T";3;2;"other";"other";"reputation";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;3;1;2;"14";"16";15
+"GP";"F";17;"U";"GT3";"T";4;3;"other";"other";"reputation";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";3;4;5;2;4;1;16;"11";"9";10
+"GP";"M";18;"U";"LE3";"T";3;3;"services";"health";"home";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;2;4;2;4;4;10;"10";"10";10
+"GP";"F";17;"U";"GT3";"T";2;3;"at_home";"other";"home";"father";2;1;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";3;3;3;1;4;3;4;"12";"13";13
+"GP";"F";17;"U";"GT3";"T";2;2;"at_home";"at_home";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;1;4;0;"12";"12";13
+"GP";"F";17;"R";"GT3";"T";2;1;"at_home";"services";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;5;1;2;5;0;"11";"10";11
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"other";"reputation";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";4;3;4;1;1;5;12;"12";"12";12
+"GP";"F";16;"U";"GT3";"T";2;3;"services";"teacher";"other";"mother";1;2;0;"yes";"no";"no";"no";"yes";"yes";"yes";"no";2;3;1;1;1;3;0;"13";"13";14
+"GP";"M";18;"U";"GT3";"T";2;2;"other";"other";"home";"mother";2;2;3;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";3;3;3;5;5;4;9;"10";"9";10
+"GP";"F";16;"U";"GT3";"T";4;4;"teacher";"services";"home";"mother";1;3;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";5;3;2;1;1;5;4;"15";"16";16
+"GP";"F";18;"R";"GT3";"T";3;1;"other";"other";"reputation";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;1;1;4;4;"8";"8";8
+"GP";"F";17;"U";"GT3";"T";3;2;"other";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;3;4;1;3;3;2;"17";"18";17
+"GP";"M";17;"U";"LE3";"T";2;3;"services";"services";"reputation";"father";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;3;3;1;3;3;0;"10";"11";11
+"GP";"M";18;"U";"LE3";"T";2;1;"at_home";"other";"course";"mother";4;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;2;4;5;3;2;"9";"10";11
+"GP";"F";17;"U";"GT3";"A";2;1;"other";"other";"course";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;2;3;1;2;3;0;"15";"15";16
+"GP";"F";17;"U";"LE3";"T";4;3;"health";"other";"reputation";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;2;3;1;2;3;0;"14";"12";12
+"GP";"M";17;"R";"GT3";"T";2;2;"other";"other";"course";"father";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;5;2;1;1;1;0;"12";"13";13
+"GP";"M";17;"U";"GT3";"T";4;4;"teacher";"teacher";"reputation";"mother";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;5;5;1;3;2;0;"13";"13";13
+"GP";"M";16;"U";"GT3";"T";4;4;"health";"other";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;4;2;4;1;0;"13";"13";14
+"GP";"M";16;"U";"LE3";"T";1;1;"other";"other";"home";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;4;2;1;1;5;2;"9";"9";9
+"GP";"M";16;"U";"GT3";"T";3;2;"at_home";"other";"reputation";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;1;3;2;0;"12";"12";12
+"GP";"M";17;"U";"LE3";"T";2;2;"other";"other";"home";"father";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;4;2;5;5;4;0;"16";"16";16
+"GP";"F";16;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;5;2;1;1;5;4;"9";"10";10
+"GP";"F";16;"U";"GT3";"A";4;1;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;1;2;5;0;"14";"13";13
+"GP";"F";18;"U";"LE3";"A";2;4;"services";"other";"course";"mother";2;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;18;"10";"10";10
+"GP";"F";18;"U";"LE3";"T";2;2;"at_home";"services";"course";"mother";1;2;1;"no";"yes";"no";"no";"no";"yes";"yes";"yes";5;3;1;1;1;5;16;"9";"8";10
+"GP";"F";18;"U";"GT3";"T";3;3;"other";"other";"course";"mother";2;1;1;"no";"no";"no";"no";"yes";"no";"yes";"no";4;1;1;1;1;3;14;"8";"7";7
+"GP";"M";18;"U";"GT3";"T";2;2;"other";"at_home";"course";"other";1;1;1;"no";"yes";"no";"yes";"no";"no";"yes";"yes";4;4;3;2;2;1;26;"7";"8";8
+"GP";"M";17;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";4;2;1;1;2;5;6;"10";"8";9
+"GP";"F";17;"U";"GT3";"T";3;2;"other";"other";"course";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";5;4;2;1;1;3;4;"14";"14";15
+"GP";"F";17;"U";"LE3";"T";1;1;"at_home";"at_home";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;2;1;2;4;10;"11";"10";10
+"GP";"F";16;"U";"GT3";"T";1;2;"other";"other";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"no";"yes";"no";5;3;5;1;2;5;4;"12";"11";11
+"GP";"F";17;"R";"GT3";"T";2;1;"at_home";"services";"course";"mother";3;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";2;1;1;1;1;3;2;"13";"13";13
+"GP";"F";17;"R";"LE3";"A";1;4;"other";"other";"course";"other";4;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;5;4;1;1;5;14;"9";"9";8
+"GP";"M";18;"U";"GT3";"T";2;2;"other";"services";"reputation";"father";1;2;0;"no";"no";"no";"no";"yes";"no";"yes";"no";5;5;4;3;5;2;16;"8";"7";8
+"GP";"F";17;"U";"LE3";"A";2;2;"other";"other";"home";"mother";1;1;1;"no";"yes";"no";"no";"no";"no";"yes";"no";3;1;2;1;1;1;8;"11";"9";10
+"GP";"F";17;"R";"LE3";"T";1;1;"at_home";"other";"course";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;3;5;4;"15";"14";15
+"GP";"F";17;"U";"LE3";"A";4;2;"teacher";"other";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";4;3;2;1;1;4;4;"15";"14";14
+"GP";"M";17;"U";"LE3";"T";4;3;"health";"other";"course";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";2;5;5;1;4;5;8;"15";"15";15
+"GP";"M";17;"R";"LE3";"A";4;4;"teacher";"other";"course";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;3;3;2;3;4;0;"12";"12";12
+"GP";"M";16;"U";"LE3";"T";4;3;"teacher";"other";"course";"mother";1;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;4;5;1;1;3;7;"14";"14";15
+"GP";"M";16;"U";"GT3";"T";4;4;"services";"services";"course";"mother";1;1;0;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";5;3;2;1;2;5;4;"14";"15";15
+"GP";"F";17;"U";"GT3";"T";4;4;"teacher";"services";"course";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";5;3;1;1;4;5;2;"11";"11";12
+"GP";"M";17;"R";"GT3";"T";1;1;"other";"other";"home";"father";2;3;0;"no";"no";"no";"no";"no";"yes";"yes";"yes";4;3;3;1;1;1;2;"13";"14";15
+"GP";"F";17;"U";"GT3";"T";3;3;"services";"other";"home";"mother";2;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;2;2;2;3;5;10;"11";"11";11
+"GP";"F";17;"U";"GT3";"T";1;1;"at_home";"other";"course";"mother";1;2;0;"yes";"no";"no";"no";"no";"yes";"no";"yes";4;3;2;1;1;4;10;"10";"9";10
+"GP";"F";18;"U";"GT3";"T";2;1;"other";"other";"course";"other";2;3;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";4;4;4;1;1;3;10;"12";"10";11
+"GP";"M";16;"U";"GT3";"T";2;1;"other";"other";"course";"mother";3;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;4;7;"15";"16";16
+"GP";"F";17;"U";"GT3";"T";1;1;"other";"services";"course";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;4;1;2;5;4;"11";"10";11
+"GP";"M";17;"U";"GT3";"T";2;3;"other";"other";"course";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;2;2;1;1;2;2;"9";"12";13
+"GP";"M";22;"U";"GT3";"T";3;1;"services";"services";"other";"mother";1;1;3;"no";"no";"no";"no";"no";"no";"yes";"yes";5;4;5;5;5;1;12;"7";"8";5
+"GP";"M";18;"R";"LE3";"T";3;3;"other";"services";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;3;1;3;5;8;"10";"9";10
+"GP";"M";16;"U";"GT3";"T";0;2;"other";"other";"other";"mother";1;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;3;2;2;4;5;0;"11";"12";11
+"GP";"M";18;"U";"GT3";"T";3;2;"services";"other";"course";"mother";2;1;0;"no";"no";"no";"no";"yes";"no";"yes";"no";4;4;5;2;4;5;8;"7";"8";7
+"GP";"M";16;"U";"GT3";"T";3;3;"at_home";"other";"reputation";"other";3;2;1;"yes";"yes";"no";"no";"no";"yes";"yes";"no";5;3;3;1;3;2;4;"9";"11";10
+"GP";"M";18;"U";"GT3";"T";2;1;"services";"services";"other";"mother";1;1;2;"no";"no";"no";"no";"no";"no";"yes";"no";3;2;5;2;5;5;4;"7";"8";6
+"GP";"M";16;"R";"GT3";"T";2;1;"other";"other";"course";"mother";2;1;0;"no";"no";"no";"yes";"no";"yes";"no";"no";3;3;2;1;3;3;2;"14";"13";12
+"GP";"M";17;"R";"GT3";"T";2;1;"other";"other";"course";"mother";1;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;4;2;2;4;5;0;"12";"12";13
+"GP";"M";17;"U";"LE3";"T";1;1;"health";"other";"course";"mother";2;1;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;4;4;1;2;5;0;"9";"10";10
+"GP";"F";18;"U";"LE3";"A";2;1;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";4;3;4;1;3;5;2;"12";"12";13
+"GP";"F";17;"U";"LE3";"T";4;2;"teacher";"services";"reputation";"mother";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;3;1;1;4;2;"14";"15";17
+"GP";"F";19;"U";"GT3";"T";2;2;"services";"services";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;5;0;"10";"10";11
+"GP";"M";18;"U";"LE3";"T";2;1;"services";"other";"course";"mother";3;2;1;"no";"no";"no";"yes";"no";"no";"yes";"no";4;4;5;4;4;5;4;"11";"10";11
+"GP";"F";17;"R";"GT3";"T";4;2;"other";"other";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;4;1;3;5;2;"11";"12";14
+"GP";"F";18;"U";"LE3";"T";1;1;"other";"at_home";"home";"mother";1;3;0;"no";"yes";"no";"no";"no";"yes";"no";"no";4;4;3;2;3;3;4;"11";"12";14
+"GP";"F";18;"R";"GT3";"T";2;2;"other";"other";"home";"mother";1;2;0;"yes";"no";"no";"no";"yes";"yes";"no";"no";3;2;3;1;1;5;4;"11";"11";13
+"GP";"M";19;"U";"LE3";"A";4;3;"services";"at_home";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;1;1;1;1;4;"11";"13";14
+"GP";"M";18;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;2;4;1;2;4;2;"16";"16";16
+"GP";"M";17;"R";"GT3";"T";2;2;"other";"services";"other";"mother";2;1;0;"no";"no";"no";"no";"no";"no";"no";"no";5;2;2;1;1;4;0;"9";"10";10
+"GP";"F";17;"U";"LE3";"T";2;2;"services";"services";"course";"father";1;4;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;4;1;1;1;2;2;"10";"11";12
+"GP";"F";20;"R";"GT3";"T";2;1;"other";"other";"course";"other";2;2;0;"no";"yes";"yes";"yes";"yes";"no";"yes";"yes";1;2;3;1;2;2;8;"10";"12";12
+"GP";"F";18;"U";"GT3";"T";4;3;"services";"other";"home";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";3;1;2;1;3;2;2;"15";"15";15
+"GP";"M";18;"U";"GT3";"T";4;3;"teacher";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";4;3;2;1;1;3;2;"10";"10";11
+"GP";"M";18;"R";"GT3";"T";3;2;"other";"other";"course";"mother";1;3;0;"no";"no";"no";"yes";"no";"yes";"no";"no";5;3;2;1;1;3;2;"10";"11";12
+"GP";"F";17;"U";"GT3";"T";3;3;"other";"other";"home";"mother";1;3;0;"no";"no";"no";"yes";"no";"yes";"no";"no";3;2;3;1;1;4;2;"15";"12";13
+"GP";"F";18;"U";"GT3";"T";2;2;"at_home";"services";"home";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;1;1;3;0;"11";"12";13
+"GP";"M";17;"U";"GT3";"T";2;2;"other";"other";"home";"father";2;1;0;"no";"no";"no";"no";"yes";"no";"yes";"no";4;4;4;2;3;4;8;"8";"8";9
+"GP";"M";18;"R";"LE3";"A";3;4;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;5;3;4;1;6;"15";"16";16
+"GP";"M";17;"U";"GT3";"T";3;1;"services";"other";"other";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;4;4;3;4;5;0;"11";"11";14
+"GP";"F";18;"R";"GT3";"T";4;4;"teacher";"other";"reputation";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;4;2;2;4;8;"10";"11";12
+"GP";"M";18;"U";"GT3";"T";4;2;"health";"other";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;4;5;1;3;5;4;"10";"12";14
+"GP";"F";18;"R";"GT3";"T";2;1;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";4;3;5;1;2;3;12;"8";"9";10
+"GP";"F";19;"U";"GT3";"T";3;3;"other";"services";"home";"other";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;5;3;3;5;16;"11";"12";12
+"GP";"F";18;"U";"GT3";"T";2;3;"other";"services";"reputation";"father";1;4;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;5;5;1;3;2;10;"16";"16";16
+"GP";"F";18;"U";"LE3";"T";1;1;"other";"other";"home";"mother";2;2;0;"no";"yes";"no";"no";"no";"yes";"no";"no";4;4;3;1;1;3;2;"13";"13";13
+"GP";"M";17;"R";"GT3";"T";1;2;"at_home";"at_home";"home";"mother";1;2;0;"no";"yes";"no";"yes";"no";"yes";"no";"yes";3;5;2;2;2;1;2;"16";"17";18
+"GP";"F";18;"U";"GT3";"T";2;1;"other";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;2;5;1;2;1;8;"14";"14";15
+"GP";"F";17;"U";"GT3";"T";2;4;"at_home";"health";"reputation";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;3;1;1;1;6;"15";"16";16
+"GP";"F";17;"U";"LE3";"T";2;2;"services";"other";"course";"mother";2;2;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;4;2;3;5;6;"12";"12";12
+"GP";"F";18;"R";"GT3";"A";3;2;"other";"services";"home";"mother";2;2;0;"no";"no";"no";"no";"no";"no";"yes";"yes";4;1;1;1;1;5;15;"12";"9";10
+"GP";"M";18;"U";"GT3";"T";4;4;"teacher";"services";"home";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;2;4;1;4;3;6;"11";"12";12
+"GP";"F";18;"U";"GT3";"T";4;4;"health";"health";"reputation";"father";1;2;1;"yes";"yes";"no";"yes";"yes";"yes";"yes";"yes";2;4;4;1;1;4;2;"14";"12";13
+"GP";"F";17;"U";"GT3";"T";2;2;"other";"services";"reputation";"father";3;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;2;3;1;1;1;8;"13";"15";15
+"GP";"F";19;"R";"GT3";"T";3;2;"services";"services";"reputation";"father";1;2;1;"yes";"yes";"no";"no";"yes";"no";"yes";"no";3;3;3;4;3;3;0;"9";"8";10
+"GP";"M";18;"U";"LE3";"T";4;3;"teacher";"services";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;2;3;1;2;1;0;"10";"10";10
+"GP";"M";18;"U";"GT3";"T";1;2;"at_home";"other";"home";"other";2;1;0;"no";"no";"no";"no";"no";"no";"yes";"no";3;4;4;2;4;4;10;"10";"10";11
+"GP";"M";17;"U";"LE3";"A";4;1;"services";"other";"home";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;5;4;2;4;5;22;"11";"11";10
+"GP";"M";17;"U";"LE3";"A";3;2;"teacher";"services";"home";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;4;3;4;3;18;"13";"13";13
+"GP";"F";18;"R";"LE3";"T";1;1;"at_home";"other";"reputation";"mother";2;4;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;2;2;1;1;3;2;"17";"17";18
+"GP";"F";18;"U";"GT3";"T";1;1;"other";"other";"home";"mother";2;2;0;"yes";"no";"no";"yes";"yes";"yes";"yes";"no";5;4;4;1;1;4;0;"12";"13";13
+"GP";"F";17;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";5;4;5;1;2;5;12;"12";"12";14
+"GP";"F";18;"U";"GT3";"T";2;1;"other";"other";"reputation";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;1;1;1;5;10;"12";"13";14
+"GP";"M";17;"U";"GT3";"T";1;1;"other";"other";"reputation";"father";1;2;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;3;3;1;2;4;0;"12";"12";12
+"GP";"F";18;"U";"GT3";"T";2;2;"at_home";"at_home";"other";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;2;2;0;"18";"18";18
+"GP";"F";17;"U";"GT3";"T";1;1;"services";"teacher";"reputation";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;0;"13";"13";14
+"GP";"M";18;"U";"GT3";"T";2;1;"services";"services";"reputation";"mother";1;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;2;4;1;3;2;0;"14";"15";15
+"GP";"M";18;"U";"LE3";"A";4;4;"teacher";"teacher";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;3;1;1;2;0;"17";"17";17
+"GP";"M";18;"U";"GT3";"T";4;2;"teacher";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;2;1;4;5;2;"15";"16";16
+"GP";"F";17;"U";"GT3";"T";4;3;"health";"services";"reputation";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;2;1;2;3;0;"17";"18";18
+"GP";"F";17;"R";"LE3";"T";3;1;"services";"other";"reputation";"mother";2;4;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";3;1;2;1;1;3;0;"18";"19";19
+"GP";"M";18;"R";"LE3";"T";3;2;"services";"other";"reputation";"mother";2;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;2;1;1;4;0;"14";"15";15
+"GP";"M";17;"U";"GT3";"T";3;3;"health";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;3;1;3;5;0;"14";"15";15
+"GP";"F";19;"U";"GT3";"T";4;4;"health";"other";"reputation";"other";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";2;3;4;2;3;2;2;"14";"13";13
+"GP";"F";18;"U";"LE3";"T";4;3;"other";"other";"home";"other";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;5;1;2;2;0;"13";"14";14
+"GP";"F";18;"U";"GT3";"T";4;3;"other";"other";"reputation";"father";1;4;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;0;"16";"17";17
+"GP";"M";18;"U";"LE3";"T";4;4;"teacher";"teacher";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";1;4;2;2;2;1;0;"18";"18";17
+"GP";"F";18;"U";"LE3";"A";4;4;"health";"other";"home";"mother";1;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;2;4;1;1;4;0;"14";"15";15
+"GP";"M";17;"U";"LE3";"T";4;4;"other";"teacher";"home";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;1;1;2;2;5;0;"12";"13";13
+"GP";"F";17;"R";"GT3";"T";4;4;"services";"services";"reputation";"mother";2;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;1;5;0;"7";"7";8
+"GP";"F";17;"U";"GT3";"T";4;2;"other";"other";"reputation";"mother";2;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;1;3;0;"16";"16";16
+"GP";"F";17;"U";"GT3";"T";3;2;"health";"health";"reputation";"father";1;4;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";5;2;2;1;2;5;0;"18";"18";18
+"GP";"M";19;"R";"LE3";"T";2;1;"at_home";"services";"course";"mother";2;3;1;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;1;1;1;5;0;"9";"10";11
+"GP";"M";20;"U";"GT3";"A";3;2;"services";"other";"course";"other";1;1;2;"no";"no";"no";"yes";"yes";"yes";"no";"no";5;5;3;1;1;5;0;"14";"15";15
+"GP";"M";19;"R";"GT3";"T";3;3;"other";"services";"reputation";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"yes";4;5;3;1;2;5;0;"10";"10";11
+"GP";"F";18;"U";"GT3";"T";1;4;"other";"teacher";"home";"mother";1;2;0;"yes";"yes";"no";"no";"no";"yes";"no";"yes";3;4;4;1;2;5;2;"10";"10";11
+"GP";"F";18;"U";"GT3";"T";2;1;"services";"other";"course";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;2;1;2;"12";"12";15
+"GP";"F";17;"U";"GT3";"T";2;3;"other";"other";"course";"father";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;2;1;1;1;3;2;"11";"12";14
+"GP";"F";17;"R";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;4;4;1;1;5;2;"15";"16";17
+"GP";"F";18;"U";"GT3";"T";4;3;"other";"other";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;4;1;1;5;2;"14";"15";17
+"GP";"F";18;"U";"LE3";"T";4;3;"health";"services";"course";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";3;2;4;1;4;1;8;"12";"12";15
+"GP";"F";17;"R";"GT3";"T";3;4;"at_home";"services";"course";"father";1;3;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";4;3;4;2;5;5;2;"15";"15";17
+"GP";"F";18;"U";"GT3";"T";3;3;"at_home";"other";"course";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;1;4;1;1;3;8;"11";"12";14
+"GP";"M";19;"U";"GT3";"T";4;2;"health";"other";"course";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;4;4;1;1;1;9;"11";"10";10
+"GP";"F";18;"U";"GT3";"T";4;4;"teacher";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;3;3;5;0;"12";"11";13
+"GP";"F";18;"U";"GT3";"T";3;4;"other";"other";"course";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;4;4;1;1;1;4;"11";"12";14
+"GP";"F";17;"U";"GT3";"T";4;4;"health";"health";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;2;5;2;"14";"15";17
+"GP";"F";17;"U";"GT3";"A";4;3;"services";"services";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;2;2;1;2;5;14;"15";"14";17
+"GP";"F";17;"U";"LE3";"A";3;3;"services";"other";"home";"mother";1;2;0;"yes";"yes";"no";"no";"yes";"yes";"yes";"no";5;3;3;1;1;5;0;"12";"12";13
+"GP";"F";17;"U";"LE3";"T";2;1;"other";"other";"home";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;2;3;2;2;2;2;"11";"12";14
+"GP";"M";18;"U";"LE3";"T";4;4;"other";"other";"reputation";"father";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;2;5;3;4;5;2;"8";"9";11
+"GP";"F";19;"U";"GT3";"T";1;1;"other";"other";"course";"other";3;3;0;"no";"no";"no";"yes";"yes";"no";"no";"yes";1;5;5;4;3;5;12;"10";"10";11
+"GP";"F";19;"U";"LE3";"A";1;1;"other";"other";"course";"other";3;2;2;"no";"yes";"no";"no";"no";"yes";"yes";"yes";5;3;4;1;1;4;2;"8";"8";9
+"GP";"F";18;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;5;2;4;5;2;"10";"10";10
+"GP";"F";17;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";4;2;2;1;1;3;4;"14";"13";13
+"GP";"F";17;"R";"LE3";"T";2;2;"services";"services";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;3;2;2;2;3;0;"11";"11";10
+"GP";"F";17;"U";"GT3";"T";3;1;"services";"services";"course";"father";1;3;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";3;4;3;2;3;5;0;"17";"18";17
+"GP";"F";17;"U";"LE3";"T";0;2;"at_home";"at_home";"home";"father";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;3;3;2;3;2;0;"14";"14";15
+"GP";"F";18;"U";"GT3";"T";1;1;"other";"other";"home";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;5;5;1;2;2;0;"14";"14";14
+"GP";"M";18;"U";"GT3";"T";4;4;"other";"other";"course";"mother";1;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;2;3;0;"13";"14";13
+"GP";"M";17;"U";"GT3";"T";3;3;"other";"services";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;3;5;3;5;5;0;"17";"18";17
+"GP";"M";17;"R";"GT3";"T";2;2;"services";"other";"course";"mother";4;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;5;5;5;4;2;"11";"10";10
+"GP";"F";17;"U";"GT3";"T";4;4;"teacher";"services";"course";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;4;1;3;4;0;"13";"12";13
+"GP";"F";17;"U";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";2;3;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";4;3;3;1;2;4;4;"15";"14";15
+"GP";"F";17;"U";"GT3";"T";3;3;"at_home";"other";"course";"mother";1;1;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;2;5;2;5;5;2;"11";"12";11
+"GP";"M";18;"U";"LE3";"T";2;2;"other";"other";"course";"mother";1;4;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;5;5;2;4;5;0;"11";"11";12
+"GP";"M";19;"R";"GT3";"T";3;2;"at_home";"services";"home";"other";1;1;0;"no";"yes";"no";"no";"no";"yes";"no";"yes";5;3;4;2;2;5;0;"11";"10";10
+"GP";"F";18;"U";"GT3";"T";2;2;"at_home";"other";"course";"mother";4;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"yes";4;2;5;1;1;2;2;"10";"9";10
+"GP";"F";17;"R";"GT3";"T";2;4;"at_home";"other";"course";"father";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;3;1;1;5;0;"15";"15";15
+"GP";"M";18;"U";"GT3";"T";2;2;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";5;4;2;1;2;5;6;"15";"14";15
+"GP";"F";18;"U";"GT3";"T";3;3;"services";"services";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;1;4;8;"10";"11";12
+"GP";"F";18;"U";"LE3";"T";2;2;"other";"other";"home";"other";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;3;3;1;1;2;0;"10";"9";12
+"GP";"F";18;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";2;4;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";4;4;4;1;1;4;6;"14";"13";14
+"GP";"F";17;"U";"GT3";"T";3;4;"services";"other";"course";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;5;1;3;5;8;"11";"13";14
+"GP";"F";17;"U";"GT3";"T";3;2;"other";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;2;2;3;2;0;"12";"13";15
+"GP";"F";18;"U";"LE3";"T";3;3;"services";"services";"home";"mother";1;4;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;3;3;1;1;1;4;"14";"14";15
+"GP";"F";17;"R";"GT3";"A";3;2;"other";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;2;3;2;0;"14";"14";16
+"GP";"M";18;"U";"GT3";"T";4;4;"teacher";"services";"home";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;2;2;2;0;"12";"12";13
+"GP";"M";18;"U";"LE3";"T";3;4;"services";"other";"home";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;3;1;3;5;6;"16";"16";17
+"GP";"F";17;"U";"GT3";"A";2;2;"at_home";"at_home";"home";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";3;3;1;1;2;4;18;"10";"12";14
+"GP";"F";18;"U";"GT3";"T";2;3;"at_home";"other";"course";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;2;3;0;"11";"12";14
+"GP";"F";18;"U";"GT3";"T";3;2;"other";"services";"other";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;4;3;2;3;1;4;"14";"16";17
+"GP";"M";18;"R";"GT3";"T";4;3;"teacher";"services";"course";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;3;2;1;2;4;4;"15";"14";17
+"GP";"M";18;"U";"GT3";"T";4;3;"teacher";"other";"course";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;4;5;2;3;5;0;"14";"13";14
+"GP";"F";17;"U";"GT3";"T";4;3;"health";"other";"reputation";"mother";1;3;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;3;1;3;4;0;"11";"12";13
+"GP";"F";17;"U";"GT3";"T";2;1;"services";"other";"course";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;3;4;2;2;1;10;"12";"15";15
+"GP";"F";17;"U";"GT3";"T";2;1;"services";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;5;2;4;4;4;"12";"16";16
+"GP";"F";19;"U";"LE3";"A";2;3;"at_home";"other";"home";"other";2;1;1;"no";"no";"no";"no";"yes";"no";"yes";"no";2;2;3;3;4;5;16;"10";"11";11
+"GP";"F";17;"U";"GT3";"T";3;1;"other";"at_home";"home";"mother";1;1;1;"no";"yes";"yes";"no";"yes";"yes";"yes";"yes";4;1;2;1;1;3;6;"10";"13";13
+"GP";"F";21;"U";"LE3";"T";4;4;"other";"other";"reputation";"other";1;3;2;"no";"no";"yes";"yes";"yes";"yes";"yes";"no";3;3;2;1;1;5;0;"9";"12";12
+"GP";"M";18;"U";"LE3";"T";2;2;"services";"services";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"no";"no";"yes";"no";4;4;4;1;3;3;11;"9";"11";12
+"GP";"M";18;"U";"LE3";"A";3;4;"other";"other";"reputation";"other";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;3;5;1;4;2;9;"13";"14";15
+"GP";"F";17;"U";"GT3";"T";2;2;"services";"services";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;4;1;3;4;0;"13";"17";17
+"GP";"M";17;"U";"LE3";"A";4;4;"health";"other";"reputation";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;2;1;2;4;2;"12";"15";15
+"GP";"F";18;"U";"LE3";"T";4;2;"teacher";"other";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;2;1;1;3;0;"14";"17";17
+"GP";"M";21;"R";"LE3";"T";1;1;"at_home";"other";"course";"other";2;2;2;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";5;3;3;5;2;4;21;"9";"10";10
+"GP";"F";20;"R";"GT3";"T";1;1;"other";"other";"reputation";"other";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";3;2;2;1;3;3;8;"11";"15";15
+"GP";"F";19;"U";"GT3";"T";4;4;"teacher";"other";"home";"other";1;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";3;2;5;4;4;5;5;"9";"10";11
+"GP";"M";17;"U";"LE3";"A";3;2;"other";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;1;2;5;10;"16";"18";18
+"GP";"F";18;"U";"GT3";"T";3;2;"at_home";"other";"reputation";"father";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;4;1;2;2;5;"14";"17";17
+"GP";"M";18;"R";"GT3";"T";2;3;"other";"services";"reputation";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;1;3;4;5;4;13;"13";"14";14
+"GP";"M";19;"U";"GT3";"T";2;1;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;3;4;1;4;4;10;"7";"11";11
+"GP";"F";18;"U";"LE3";"A";2;2;"services";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;1;4;1;3;4;10;"14";"17";17
+"GP";"F";20;"U";"GT3";"T";1;0;"other";"other";"reputation";"mother";2;1;1;"yes";"no";"no";"no";"yes";"yes";"yes";"yes";5;3;1;1;1;5;5;"8";"10";10
+"GP";"F";18;"U";"GT3";"T";3;2;"services";"other";"home";"mother";1;2;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";3;1;2;1;2;1;4;"10";"13";13
+"MS";"F";16;"U";"GT3";"T";1;3;"at_home";"other";"other";"father";2;1;0;"no";"yes";"no";"no";"yes";"no";"yes";"yes";4;3;3;1;3;5;11;"10";"11";11
+"MS";"F";16;"R";"GT3";"T";2;2;"other";"other";"course";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;4;4;1;1;5;0;"12";"12";12
+"MS";"F";15;"R";"GT3";"T";1;1;"at_home";"services";"other";"mother";1;1;1;"no";"yes";"no";"no";"yes";"yes";"no";"yes";4;1;3;1;1;2;6;"10";"10";10
+"MS";"F";15;"R";"GT3";"T";3;3;"at_home";"other";"course";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;4;2;3;5;4;"10";"10";11
+"MS";"F";16;"R";"GT3";"T";2;3;"at_home";"services";"course";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"no";"no";4;5;2;1;2;5;0;"16";"17";17
+"MS";"F";15;"R";"LE3";"T";2;1;"at_home";"other";"home";"mother";2;1;0;"no";"no";"no";"no";"yes";"no";"no";"no";1;3;4;1;1;1;0;"6";"8";9
+"MS";"M";16;"R";"LE3";"A";4;4;"at_home";"other";"home";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";5;3;2;1;3;2;5;"10";"11";11
+"MS";"M";16;"U";"GT3";"A";1;2;"other";"other";"other";"mother";1;3;0;"yes";"no";"no";"no";"yes";"yes";"yes";"no";4;4;3;1;1;5;0;"10";"11";11
+"MS";"F";17;"R";"GT3";"T";3;2;"at_home";"other";"course";"father";1;2;1;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;5;4;1;2;5;0;"10";"10";10
+"MS";"F";17;"R";"GT3";"T";1;1;"other";"other";"other";"father";1;1;1;"no";"yes";"no";"no";"no";"no";"yes";"no";5;4;4;2;2;5;0;"6";"6";7
+"MS";"F";15;"R";"GT3";"T";4;4;"teacher";"other";"course";"mother";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";1;5;1;3;5;5;0;"13";"14";14
+"MS";"F";16;"U";"LE3";"A";2;2;"at_home";"other";"reputation";"mother";2;4;0;"no";"no";"no";"yes";"no";"no";"no";"yes";1;2;1;1;1;1;4;"10";"9";11
+"MS";"F";15;"R";"LE3";"T";1;1;"at_home";"services";"reputation";"father";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;3;1;2;4;0;"10";"10";10
+"MS";"F";15;"R";"LE3";"T";1;1;"other";"services";"course";"mother";2;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;4;3;1;2;2;4;"6";"7";8
+"MS";"F";16;"R";"GT3";"T";0;2;"other";"other";"other";"mother";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";3;2;3;1;2;2;0;"12";"11";12
+"MS";"F";17;"R";"GT3";"T";2;3;"other";"other";"course";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;5;5;1;3;3;2;"10";"11";12
+"MS";"F";15;"R";"GT3";"T";3;3;"other";"services";"course";"father";2;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;1;3;1;1;4;0;"14";"16";16
+"MS";"M";16;"U";"GT3";"T";1;1;"at_home";"services";"home";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";5;4;5;4;5;3;0;"7";"0";0
+"MS";"M";17;"U";"GT3";"T";1;1;"other";"other";"home";"mother";1;2;0;"no";"no";"yes";"no";"no";"yes";"yes";"no";4;4;3;2;4;5;4;"8";"9";9
+"MS";"M";15;"R";"LE3";"T";4;1;"health";"services";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;2;2;0;"12";"13";14
+"MS";"M";15;"R";"LE3";"T";4;1;"health";"services";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;2;2;7;"7";"9";8
+"MS";"M";16;"R";"GT3";"T";3;4;"other";"health";"other";"mother";3;2;0;"no";"no";"no";"no";"no";"yes";"no";"no";3;4;5;1;2;5;4;"9";"10";11
+"MS";"M";15;"R";"GT3";"T";1;1;"other";"other";"course";"mother";4;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";5;4;5;2;4;4;8;"7";"9";9
+"MS";"M";15;"U";"LE3";"T";3;3;"at_home";"at_home";"reputation";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;5;0;"11";"11";11
+"MS";"M";17;"R";"GT3";"T";2;1;"other";"other";"other";"mother";3;1;0;"no";"no";"no";"yes";"yes";"no";"no";"yes";5;5;5;5;5;3;8;"8";"10";9
+"MS";"F";16;"R";"GT3";"T";4;4;"teacher";"teacher";"course";"mother";2;3;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;2;2;1;1;4;6;"16";"16";17
+"MS";"F";15;"R";"GT3";"T";1;2;"other";"services";"course";"mother";2;1;0;"no";"no";"no";"no";"yes";"yes";"no";"no";5;1;2;1;1;1;3;"11";"13";13
+"MS";"F";16;"R";"GT3";"T";2;3;"other";"services";"course";"mother";3;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;5;4;1;2;1;2;"15";"15";15
+"MS";"M";16;"R";"GT3";"T";1;2;"other";"other";"course";"father";2;2;0;"no";"no";"no";"no";"yes";"yes";"no";"no";4;3;3;1;1;5;0;"10";"11";11
+"MS";"F";16;"R";"GT3";"T";2;2;"other";"other";"course";"mother";3;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;5;1;1;4;4;"9";"10";11
+"MS";"F";16;"U";"GT3";"T";1;2;"other";"services";"course";"mother";1;3;1;"no";"yes";"no";"no";"yes";"yes";"no";"no";1;3;2;1;2;4;0;"10";"8";8
+"MS";"F";16;"U";"GT3";"T";1;2;"other";"services";"course";"mother";1;3;1;"no";"yes";"no";"no";"yes";"yes";"no";"no";1;3;2;1;2;4;3;"9";"8";8
+"MS";"F";15;"U";"GT3";"T";2;1;"at_home";"other";"home";"mother";1;2;0;"yes";"yes";"no";"no";"no";"yes";"yes";"no";4;4;2;3;3;2;0;"9";"10";9
+"MS";"F";16;"U";"GT3";"T";1;1;"at_home";"other";"course";"father";1;2;0;"no";"yes";"no";"no";"no";"yes";"no";"yes";5;4;3;2;1;2;0;"13";"14";15
+"MS";"M";17;"R";"LE3";"T";1;2;"at_home";"services";"reputation";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;5;5;5;5;3;4;"10";"11";11
+"MS";"F";16;"R";"GT3";"T";1;1;"other";"other";"home";"father";4;4;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";4;3;2;1;1;1;0;"13";"10";13
+"MS";"F";16;"R";"GT3";"T";1;1;"at_home";"other";"other";"father";4;3;0;"yes";"yes";"no";"no";"yes";"yes";"no";"no";4;4;3;1;1;5;2;"10";"9";10
+"MS";"F";15;"R";"GT3";"T";1;1;"at_home";"other";"home";"father";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;1;2;1;"11";"10";11
+"MS";"F";16;"R";"GT3";"T";1;1;"at_home";"other";"other";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;2;2;4;3;2;0;"13";"12";14
+"MS";"F";15;"R";"GT3";"T";1;1;"at_home";"at_home";"course";"father";3;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;2;1;1;2;2;0;"13";"14";14
+"MS";"F";15;"R";"LE3";"T";2;2;"other";"other";"other";"father";1;3;0;"yes";"yes";"no";"no";"yes";"yes";"no";"no";4;4;3;2;2;5;2;"14";"11";12
+"MS";"M";16;"R";"GT3";"T";1;1;"at_home";"other";"other";"father";2;1;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";3;4;4;3;4;5;6;"11";"11";11
+"MS";"F";18;"U";"GT3";"T";1;2;"other";"other";"course";"father";1;2;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";3;4;4;2;3;5;9;"9";"8";8
+"MS";"M";15;"U";"GT3";"T";3;1;"other";"services";"home";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";3;2;3;1;3;4;0;"10";"9";11
+"MS";"F";16;"R";"GT3";"T";2;2;"other";"services";"course";"father";3;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;4;1;1;2;1;"14";"13";14
+"MS";"M";15;"U";"GT3";"T";2;2;"health";"other";"reputation";"mother";3;1;0;"no";"no";"no";"no";"yes";"yes";"no";"no";4;3;3;1;2;4;1;"13";"12";13
+"MS";"M";16;"U";"GT3";"T";4;4;"other";"teacher";"course";"father";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";4;3;1;1;1;3;0;"13";"12";13
+"MS";"F";15;"R";"GT3";"T";3;3;"services";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;5;4;1;1;1;4;"13";"12";12
+"MS";"F";16;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";2;2;1;"no";"yes";"no";"yes";"no";"yes";"no";"no";4;4;4;2;3;5;2;"12";"11";12
+"MS";"F";16;"R";"LE3";"T";2;2;"other";"other";"home";"father";3;1;0;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";4;3;2;1;1;4;0;"14";"14";16
+"MS";"M";16;"U";"LE3";"T";2;1;"at_home";"services";"course";"mother";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";2;4;3;2;3;4;4;"10";"8";10
+"MS";"M";15;"R";"LE3";"T";1;3;"at_home";"other";"reputation";"father";3;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;2;4;3;5;3;2;"10";"11";11
+"MS";"F";15;"U";"GT3";"T";2;2;"other";"services";"course";"mother";2;3;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;3;2;1;1;4;0;"12";"13";14
+"MS";"F";16;"R";"LE3";"T";2;1;"other";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;4;3;1;1;5;2;"10";"8";8
+"MS";"M";15;"U";"GT3";"T";3;3;"services";"services";"course";"father";2;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";4;3;3;2;4;3;11;"12";"10";11
+"MS";"F";16;"R";"GT3";"T";1;1;"at_home";"other";"course";"father";2;2;3;"yes";"yes";"no";"no";"yes";"yes";"no";"no";3;4;3;1;1;1;0;"7";"7";8
+"MS";"F";17;"U";"GT3";"T";2;2;"other";"at_home";"course";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"no";"no";"no";4;5;3;1;1;5;4;"9";"9";10
+"MS";"F";19;"U";"GT3";"T";2;3;"at_home";"services";"course";"other";1;1;1;"no";"no";"no";"no";"yes";"no";"yes";"yes";4;4;4;1;1;2;0;"9";"9";10
+"MS";"F";17;"R";"GT3";"T";2;1;"at_home";"other";"course";"mother";3;1;0;"no";"yes";"no";"yes";"yes";"no";"no";"yes";5;5;3;1;1;3;2;"9";"10";11
+"MS";"F";15;"R";"LE3";"T";1;1;"at_home";"other";"course";"mother";2;1;0;"no";"yes";"no";"no";"yes";"no";"no";"yes";5;2;1;1;3;4;0;"9";"10";9
+"MS";"F";16;"R";"GT3";"T";2;2;"other";"other";"course";"father";3;2;0;"no";"yes";"no";"no";"yes";"no";"yes";"no";3;4;5;1;2;1;1;"9";"10";11
+"MS";"F";16;"U";"LE3";"A";2;2;"other";"other";"home";"mother";1;1;0;"no";"yes";"no";"no";"yes";"no";"no";"no";4;3;4;1;2;1;6;"7";"7";8
+"MS";"F";17;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;5;1;2;4;0;"11";"10";11
+"MS";"F";16;"U";"GT3";"T";2;2;"other";"services";"course";"father";1;1;1;"no";"yes";"yes";"yes";"no";"yes";"yes";"no";4;4;3;1;4;3;1;"9";"10";10
+"MS";"F";18;"R";"LE3";"A";3;2;"other";"other";"course";"other";2;3;2;"no";"yes";"no";"no";"no";"no";"no";"yes";3;3;2;1;1;2;6;"7";"9";10
+"MS";"F";19;"U";"GT3";"T";1;1;"at_home";"services";"course";"mother";1;3;1;"no";"no";"no";"yes";"yes";"no";"no";"yes";5;3;1;1;1;3;6;"7";"9";9
+"MS";"M";18;"R";"GT3";"T";1;1;"other";"other";"home";"mother";2;1;1;"no";"no";"no";"yes";"yes";"no";"yes";"no";4;4;3;3;4;4;0;"8";"9";10
+"MS";"F";18;"R";"GT3";"T";1;1;"at_home";"at_home";"course";"mother";2;1;1;"no";"no";"no";"no";"no";"no";"yes";"yes";3;2;3;1;1;2;4;"9";"11";10
+"MS";"F";19;"U";"GT3";"T";1;1;"other";"other";"course";"other";2;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";1;1;4;4;1;1;12;"7";"8";9
+"MS";"F";16;"R";"GT3";"A";2;2;"health";"other";"course";"mother";1;2;0;"no";"no";"no";"no";"no";"yes";"no";"yes";3;3;2;1;1;3;2;"8";"10";10
+"MS";"F";17;"U";"GT3";"T";0;1;"other";"at_home";"course";"father";2;1;0;"no";"no";"no";"yes";"no";"yes";"no";"no";2;4;4;3;5;5;5;"9";"9";10
+"MS";"F";16;"R";"LE3";"T";1;2;"at_home";"other";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"no";"yes";"no";4;4;5;1;3;3;0;"8";"9";9
+"MS";"F";16;"U";"GT3";"T";3;3;"other";"other";"reputation";"mother";1;1;0;"no";"no";"no";"yes";"yes";"no";"yes";"yes";4;5;4;1;1;4;0;"14";"13";13
+"MS";"F";16;"R";"LE3";"T";1;1;"services";"services";"home";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;4;2;2;4;2;"14";"14";14
+"MS";"M";17;"U";"GT3";"T";3;3;"services";"at_home";"course";"mother";2;4;1;"no";"yes";"yes";"yes";"yes";"yes";"no";"no";5;4;5;3;4;5;0;"10";"11";10
+"MS";"F";16;"U";"GT3";"T";2;1;"other";"services";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;3;3;1;1;1;0;"14";"13";14
+"MS";"F";16;"U";"GT3";"T";2;2;"services";"other";"course";"mother";1;1;0;"no";"yes";"yes";"yes";"yes";"yes";"no";"yes";4;2;5;1;2;5;0;"17";"16";16
+"MS";"M";17;"U";"GT3";"T";1;2;"other";"other";"course";"father";1;1;1;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";5;3;5;5;5;1;12;"6";"7";7
+"MS";"M";16;"U";"LE3";"T";4;3;"other";"other";"course";"father";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;2;5;1;5;5;8;"14";"12";13
+"MS";"M";17;"R";"LE3";"T";2;2;"services";"services";"other";"mother";3;4;1;"no";"yes";"no";"no";"yes";"yes";"no";"no";1;3;5;3;5;3;2;"10";"8";9
+"MS";"F";16;"U";"GT3";"T";1;1;"other";"other";"course";"other";1;4;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";2;2;1;1;1;5;0;"14";"14";14
+"MS";"F";19;"U";"LE3";"T";2;2;"other";"other";"home";"mother";1;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;4;5;1;1;1;0;"12";"13";13
+"MS";"F";17;"R";"GT3";"T";1;1;"at_home";"other";"reputation";"mother";2;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;4;5;1;2;5;0;"11";"11";11
+"MS";"F";20;"U";"GT3";"T";3;3;"at_home";"services";"other";"mother";2;2;1;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;3;4;2;4;3;8;"11";"9";10
+"MS";"F";17;"U";"LE3";"T";1;1;"other";"services";"course";"father";1;3;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";4;3;3;1;1;3;0;"11";"11";10
+"MS";"M";17;"R";"GT3";"T";2;2;"other";"other";"course";"mother";3;1;1;"no";"yes";"no";"no";"no";"yes";"yes";"no";4;4;5;1;2;5;0;"10";"9";9
+"MS";"F";16;"R";"LE3";"T";1;1;"at_home";"other";"course";"father";3;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";5;3;2;1;1;1;0;"16";"17";18
+"MS";"F";17;"R";"GT3";"T";2;2;"other";"other";"reputation";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;3;2;1;1;1;0;"15";"17";17
+"MS";"F";17;"U";"GT3";"A";1;0;"other";"other";"other";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;4;5;1;1;4;1;"11";"9";10
+"MS";"F";18;"R";"GT3";"T";1;1;"at_home";"other";"other";"mother";1;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;2;1;1;5;9;"7";"7";7
+"MS";"F";16;"U";"GT3";"T";3;1;"other";"other";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;1;3;1;3;1;0;"8";"6";8
+"MS";"F";16;"U";"GT3";"T";3;2;"services";"at_home";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";3;1;3;1;4;3;2;"7";"6";7
+"MS";"F";18;"U";"LE3";"T";1;1;"other";"at_home";"reputation";"mother";2;2;0;"yes";"no";"no";"no";"yes";"yes";"no";"no";2;3;5;1;4;3;8;"9";"8";10
+"MS";"F";16;"R";"GT3";"T";4;4;"health";"teacher";"reputation";"father";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;3;3;2;3;2;0;"14";"16";16
+"MS";"F";16;"R";"LE3";"T";1;2;"other";"other";"reputation";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;4;5;1;4;2;0;"14";"14";15
+"MS";"F";18;"U";"GT3";"A";2;4;"other";"services";"reputation";"father";1;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";2;3;2;1;3;1;8;"8";"5";8
+"MS";"M";16;"R";"GT3";"T";2;1;"other";"services";"reputation";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;2;1;1;1;2;0;"8";"7";0
+"MS";"F";16;"U";"LE3";"T";1;1;"at_home";"other";"other";"mother";3;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;2;1;3;5;6;"6";"8";8
+"MS";"F";16;"R";"GT3";"T";2;3;"at_home";"services";"other";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";3;3;3;1;1;2;0;"8";"10";10
+"MS";"F";16;"U";"GT3";"T";4;4;"health";"health";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;4;1;2;3;4;"8";"8";8
+"MS";"M";18;"U";"LE3";"T";4;4;"at_home";"health";"home";"mother";1;4;0;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";5;5;5;5;5;5;2;"5";"6";6
+"MS";"F";16;"R";"LE3";"T";3;4;"at_home";"other";"other";"mother";3;2;0;"no";"yes";"no";"no";"no";"yes";"no";"no";4;2;1;1;1;2;2;"7";"9";8
+"MS";"M";17;"U";"LE3";"T";4;4;"other";"services";"home";"mother";1;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;3;1;2;5;0;"15";"14";16
+"MS";"F";17;"R";"GT3";"T";4;1;"other";"other";"other";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;2;3;1;2;5;1;"13";"14";14
+"MS";"M";16;"U";"LE3";"T";2;2;"services";"services";"other";"mother";4;3;0;"no";"no";"no";"no";"yes";"yes";"no";"no";5;1;3;2;2;3;0;"10";"9";10
+"MS";"F";17;"R";"GT3";"T";2;2;"at_home";"other";"other";"mother";1;1;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";5;1;3;1;2;5;5;"9";"9";9
+"MS";"F";16;"U";"LE3";"T";4;4;"services";"services";"other";"father";2;1;0;"no";"yes";"no";"no";"yes";"yes";"no";"no";5;1;3;1;2;5;1;"11";"11";11
+"MS";"M";17;"U";"GT3";"T";3;3;"services";"services";"home";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";4;1;4;5;5;3;8;"7";"10";9
+"MS";"M";17;"U";"GT3";"T";1;1;"at_home";"services";"other";"mother";3;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;1;3;3;3;1;0;"10";"10";10
+"MS";"M";16;"U";"GT3";"T";2;1;"health";"services";"other";"mother";2;2;0;"no";"no";"no";"no";"no";"yes";"yes";"yes";4;2;2;1;4;5;2;"9";"7";8
+"MS";"F";16;"U";"LE3";"T";2;1;"other";"services";"other";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";3;2;2;1;1;3;0;"14";"15";16
+"MS";"M";16;"U";"LE3";"T";4;4;"teacher";"health";"other";"father";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;1;2;2;5;5;0;"11";"12";12
+"MS";"M";15;"R";"GT3";"T";1;2;"other";"services";"course";"mother";3;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;5;5;1;3;5;11;"9";"11";10
+"MS";"M";15;"U";"LE3";"A";2;2;"other";"other";"reputation";"mother";3;4;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";5;4;5;2;3;5;8;"13";"14";14
+"MS";"M";15;"U";"LE3";"A";2;1;"services";"services";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;3;3;1;2;5;11;"12";"13";12
+"MS";"F";16;"R";"LE3";"T";2;2;"other";"other";"course";"mother";1;3;0;"no";"yes";"no";"no";"no";"yes";"no";"yes";4;3;3;2;2;5;2;"11";"11";11
+"MS";"F";16;"U";"LE3";"T";4;1;"other";"other";"home";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";1;2;4;2;2;1;8;"9";"10";10
+"MS";"F";17;"U";"GT3";"T";3;2;"at_home";"other";"home";"mother";2;1;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;3;3;2;2;1;5;"9";"11";11
+"MS";"F";17;"R";"GT3";"T";2;2;"other";"other";"other";"mother";2;2;0;"yes";"no";"yes";"no";"yes";"yes";"no";"no";5;1;3;1;1;5;0;"11";"9";11
+"MS";"F";16;"U";"GT3";"T";4;4;"teacher";"services";"course";"mother";2;3;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;3;5;1;4;5;1;"10";"11";12
+"MS";"M";17;"R";"GT3";"T";4;4;"health";"other";"course";"father";3;1;3;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";3;3;3;1;3;5;2;"9";"9";8
+"MS";"M";17;"R";"LE3";"T";1;3;"other";"other";"course";"father";2;1;0;"no";"no";"no";"yes";"yes";"yes";"no";"yes";5;1;2;3;3;5;2;"12";"11";12
+"MS";"M";17;"U";"GT3";"T";3;4;"services";"other";"other";"mother";1;2;1;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";5;4;4;3;4;5;8;"8";"9";8
+"MS";"F";17;"U";"GT3";"T";4;4;"health";"health";"course";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;2;5;1;1;5;0;"13";"15";16
+"MS";"M";16;"R";"LE3";"T";4;1;"other";"at_home";"other";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;1;2;2;1;2;0;"10";"11";11
+"MS";"F";17;"U";"GT3";"A";1;1;"at_home";"at_home";"other";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";4;5;5;1;2;3;2;"11";"10";11
+"MS";"F";17;"R";"GT3";"T";4;2;"other";"other";"course";"mother";2;2;0;"yes";"yes";"no";"no";"no";"yes";"yes";"no";4;3;3;2;3;5;0;"17";"18";18
+"MS";"M";16;"U";"LE3";"A";2;2;"other";"services";"course";"father";2;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";4;1;2;2;2;5;0;"12";"13";13
+"MS";"M";17;"U";"GT3";"T";3;2;"other";"other";"other";"father";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"yes";"no";4;1;2;2;2;1;0;"13";"14";13
+"MS";"M";19;"U";"GT3";"T";1;1;"other";"other";"other";"mother";1;2;2;"no";"yes";"no";"yes";"yes";"no";"yes";"no";4;4;3;3;4;4;2;"9";"9";10
+"MS";"M";17;"U";"LE3";"A";1;0;"other";"other";"home";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;1;2;1;1;5;4;"11";"11";12
+"MS";"F";17;"R";"GT3";"T";1;1;"at_home";"at_home";"course";"father";2;1;0;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";3;5;5;2;2;4;3;"10";"11";10
+"MS";"F";16;"R";"GT3";"T";1;2;"other";"other";"home";"father";1;3;0;"yes";"yes";"no";"no";"no";"yes";"yes";"yes";4;3;4;1;1;3;5;"13";"14";13
+"MS";"M";16;"R";"LE3";"T";1;2;"other";"at_home";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"yes";"no";"no";4;4;4;2;4;5;4;"9";"10";11
+"MS";"F";17;"R";"GT3";"T";3;1;"other";"other";"course";"mother";2;2;3;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";5;4;4;1;1;5;2;"7";"9";10
+"MS";"M";17;"R";"GT3";"T";2;2;"other";"other";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"no";"no";"yes";5;5;5;3;5;5;0;"8";"13";10
+"MS";"M";18;"R";"GT3";"T";1;0;"at_home";"at_home";"course";"other";3;1;1;"yes";"yes";"no";"no";"yes";"yes";"no";"no";4;3;2;1;1;4;0;"12";"12";13
+"MS";"M";17;"R";"GT3";"T";1;1;"other";"services";"course";"mother";2;1;0;"no";"yes";"no";"yes";"no";"yes";"yes";"yes";4;5;5;1;3;2;0;"10";"9";10
+"MS";"M";18;"U";"LE3";"T";1;1;"at_home";"at_home";"course";"mother";2;2;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";4;3;3;1;4;5;6;"10";"9";10
+"MS";"F";16;"R";"LE3";"T";2;2;"other";"services";"course";"father";1;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"yes";5;4;3;1;1;1;0;"11";"13";12
+"MS";"M";17;"U";"GT3";"T";2;2;"other";"other";"course";"mother";1;1;1;"no";"no";"no";"yes";"yes";"yes";"no";"yes";1;2;1;2;3;5;0;"7";"0";0
+"MS";"M";16;"R";"GT3";"T";3;2;"services";"other";"course";"father";2;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;5;5;2;3;5;2;"11";"9";10
+"MS";"M";16;"R";"LE3";"T";1;1;"at_home";"other";"course";"mother";2;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;5;5;2;4;5;0;"10";"10";9
+"MS";"M";18;"R";"GT3";"T";1;1;"services";"other";"course";"other";2;1;1;"no";"yes";"no";"no";"yes";"no";"yes";"yes";5;3;3;2;3;5;2;"9";"7";9
+"MS";"M";18;"R";"GT3";"T";3;2;"services";"other";"course";"mother";1;1;1;"no";"no";"no";"no";"yes";"no";"yes";"no";2;3;1;2;2;5;0;"4";"0";0
+"MS";"M";19;"U";"GT3";"T";3;2;"at_home";"services";"course";"mother";2;1;3;"no";"no";"no";"yes";"yes";"yes";"no";"no";3;2;1;1;1;3;4;"6";"11";9
+"MS";"M";18;"U";"GT3";"T";3;3;"at_home";"at_home";"course";"mother";1;2;2;"no";"yes";"no";"yes";"yes";"no";"yes";"no";4;4;5;1;3;3;9;"4";"8";8
+"MS";"M";16;"R";"GT3";"T";2;2;"services";"services";"course";"mother";2;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";5;4;3;2;4;4;6;"7";"8";8
+"MS";"M";19;"U";"GT3";"T";2;1;"at_home";"other";"course";"other";2;1;3;"no";"no";"no";"yes";"no";"no";"yes";"yes";4;4;3;1;3;5;4;"8";"9";9
+"MS";"F";16;"U";"GT3";"A";3;2;"services";"at_home";"course";"mother";2;2;2;"no";"yes";"no";"yes";"yes";"yes";"no";"yes";2;5;5;1;1;1;8;"5";"5";7
+"MS";"F";17;"U";"GT3";"T";1;1;"other";"at_home";"course";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"no";"no";4;3;2;1;2;5;9;"7";"9";10
+"MS";"M";20;"R";"GT3";"T";1;1;"other";"other";"course";"other";2;1;1;"no";"yes";"no";"no";"yes";"no";"yes";"yes";4;4;3;2;4;4;12;"8";"11";10
+"MS";"F";18;"R";"GT3";"A";4;3;"services";"services";"course";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";5;4;4;3;4;2;8;"10";"11";10
+"MS";"M";18;"R";"GT3";"T";3;2;"other";"other";"course";"mother";2;1;0;"no";"yes";"no";"no";"no";"yes";"yes";"no";2;5;5;5;5;5;8;"9";"10";11
+"MS";"M";19;"R";"GT3";"T";1;1;"other";"services";"home";"other";3;2;1;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;4;4;3;3;2;8;"10";"9";11
+"MS";"M";17;"U";"GT3";"T";3;3;"health";"other";"course";"mother";2;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;5;4;2;3;3;4;"8";"9";10
+"MS";"M";18;"U";"LE3";"T";1;3;"at_home";"services";"course";"mother";1;1;0;"no";"no";"no";"no";"yes";"no";"yes";"yes";4;3;3;2;3;3;0;"9";"10";9
+"MS";"M";19;"R";"GT3";"T";1;1;"other";"other";"home";"other";3;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;4;3;3;5;4;"8";"9";10
+"MS";"F";18;"U";"GT3";"A";1;2;"at_home";"other";"course";"mother";2;2;2;"no";"yes";"no";"no";"yes";"yes";"no";"no";4;3;3;1;1;5;2;"6";"8";8
+"MS";"F";19;"U";"LE3";"A";1;1;"at_home";"other";"course";"mother";1;1;0;"no";"yes";"no";"no";"yes";"no";"no";"no";1;4;4;1;1;5;0;"6";"8";7
+"MS";"F";18;"R";"GT3";"T";2;2;"other";"other";"other";"mother";2;1;1;"no";"no";"no";"no";"yes";"no";"yes";"yes";5;5;5;1;1;3;0;"8";"6";0
+"MS";"F";17;"R";"GT3";"T";0;0;"at_home";"other";"course";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;3;1;1;5;0;"10";"11";11
+"MS";"F";17;"R";"LE3";"A";3;1;"other";"at_home";"course";"other";2;3;0;"no";"yes";"yes";"no";"yes";"no";"no";"no";4;2;3;2;2;3;5;"8";"7";8
+"MS";"F";17;"U";"GT3";"T";4;2;"teacher";"services";"home";"mother";1;2;0;"yes";"yes";"no";"yes";"yes";"yes";"yes";"no";5;5;5;1;3;5;0;"8";"8";0
+"MS";"F";18;"R";"LE3";"T";2;2;"services";"services";"course";"mother";1;2;1;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";2;3;3;1;2;4;3;"7";"6";8
+"MS";"F";17;"U";"GT3";"T";4;1;"health";"at_home";"course";"mother";1;1;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";3;2;2;1;1;5;0;"8";"10";9
+"MS";"F";17;"U";"LE3";"T";1;2;"at_home";"other";"course";"father";1;1;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;5;1;1;1;3;0;"7";"10";10
+"MS";"F";18;"U";"GT3";"T";1;1;"other";"other";"course";"mother";3;2;2;"no";"no";"no";"yes";"yes";"yes";"no";"yes";3;4;4;2;2;5;3;"7";"8";7
+"MS";"F";18;"U";"GT3";"T";2;2;"services";"at_home";"reputation";"father";2;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;3;5;1;1;1;2;"12";"13";14
+"MS";"F";17;"U";"GT3";"T";3;3;"services";"services";"course";"mother";2;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;4;3;1;1;4;0;"11";"12";13
+"MS";"F";18;"U";"LE3";"A";1;2;"at_home";"other";"reputation";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;4;3;1;2;4;0;"12";"13";14
+"MS";"F";18;"U";"GT3";"T";4;4;"teacher";"teacher";"reputation";"mother";2;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";4;3;5;1;2;1;0;"18";"18";18
+"MS";"M";18;"U";"LE3";"T";4;4;"services";"other";"reputation";"mother";1;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"no";5;4;5;1;1;5;3;"17";"17";17
+"MS";"F";17;"U";"GT3";"T";4;2;"other";"other";"course";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;3;1;2;4;0;"17";"18";18
+"MS";"F";18;"R";"GT3";"T";2;2;"at_home";"other";"course";"mother";3;2;1;"no";"no";"no";"yes";"yes";"yes";"no";"yes";4;3;3;1;1;4;0;"9";"0";0
+"MS";"M";18;"U";"LE3";"T";1;2;"at_home";"services";"home";"mother";2;1;0;"no";"yes";"no";"no";"no";"yes";"no";"no";4;1;4;5;5;1;8;"10";"11";11
+"MS";"M";18;"R";"GT3";"T";4;4;"at_home";"services";"other";"mother";3;1;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"yes";2;5;5;1;1;1;5;"12";"13";14
+"MS";"M";17;"R";"GT3";"T";1;1;"other";"services";"other";"father";3;1;0;"no";"no";"no";"no";"no";"no";"no";"no";4;2;3;3;4;4;4;"12";"13";14
+"MS";"F";18;"U";"GT3";"T";2;2;"other";"other";"course";"mother";2;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";1;3;1;1;1;2;4;"8";"8";10
+"MS";"F";18;"U";"LE3";"T";2;2;"services";"services";"course";"father";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";5;4;5;1;4;3;0;"11";"12";13
+"MS";"F";18;"R";"LE3";"A";4;2;"teacher";"other";"reputation";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;1;1;1;5;0;"5";"0";0
+"MS";"F";18;"U";"GT3";"T";1;1;"at_home";"services";"course";"mother";3;2;1;"no";"no";"no";"no";"yes";"no";"no";"no";4;4;2;1;2;2;2;"9";"10";10
+"MS";"F";19;"U";"GT3";"T";1;1;"at_home";"services";"other";"father";2;1;1;"no";"no";"no";"no";"yes";"no";"no";"no";5;5;5;2;3;2;0;"5";"0";0
+"MS";"F";17;"U";"GT3";"T";4;2;"teacher";"other";"course";"father";2;4;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;2;3;3;1;5;0;"18";"18";18
+"MS";"F";17;"R";"LE3";"A";2;1;"services";"other";"reputation";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"yes";5;3;3;1;2;2;5;"11";"11";12
+"MS";"F";18;"U";"LE3";"A";1;1;"at_home";"services";"course";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";5;2;3;1;2;3;2;"8";"10";11
+"MS";"F";18;"U";"GT3";"T";1;2;"at_home";"at_home";"course";"father";2;2;0;"no";"yes";"no";"no";"yes";"no";"no";"no";4;1;1;1;1;4;0;"11";"11";12
+"MS";"F";19;"R";"GT3";"A";1;1;"at_home";"at_home";"course";"other";2;2;3;"no";"yes";"no";"yes";"yes";"no";"no";"yes";3;5;4;1;4;1;0;"8";"0";0
+"MS";"F";18;"R";"GT3";"T";2;2;"services";"other";"home";"mother";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;2;1;1;1;4;5;"14";"14";15
+"MS";"M";17;"R";"GT3";"T";4;3;"services";"other";"home";"mother";2;2;1;"no";"yes";"yes";"yes";"no";"yes";"yes";"yes";4;5;5;1;3;2;4;"10";"11";11
+"MS";"F";18;"U";"GT3";"T";3;3;"services";"services";"course";"father";1;2;0;"no";"yes";"no";"no";"yes";"yes";"no";"yes";5;3;4;1;1;5;0;"10";"10";10
+"MS";"F";17;"R";"GT3";"T";4;4;"teacher";"services";"other";"father";2;2;0;"no";"yes";"yes";"yes";"yes";"yes";"yes";"no";4;3;3;1;2;5;2;"12";"12";12
+"MS";"F";17;"U";"LE3";"A";3;2;"services";"other";"reputation";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";1;2;3;1;2;5;0;"15";"14";15
+"MS";"M";18;"U";"LE3";"T";1;1;"other";"services";"home";"father";2;1;0;"no";"no";"no";"no";"no";"yes";"yes";"yes";3;3;2;1;2;3;2;"14";"13";14
+"MS";"F";18;"U";"LE3";"T";1;1;"at_home";"services";"course";"father";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;3;2;1;1;4;0;"19";"17";18
+"MS";"F";18;"R";"LE3";"A";1;2;"at_home";"other";"course";"mother";3;2;0;"no";"no";"no";"no";"yes";"yes";"no";"yes";4;3;4;1;4;5;0;"16";"15";15
+"MS";"F";18;"U";"GT3";"T";3;3;"services";"services";"other";"mother";2;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;2;1;3;3;6;"13";"12";13
+"MS";"F";17;"U";"LE3";"T";4;4;"at_home";"at_home";"course";"mother";1;2;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";2;3;4;1;1;1;4;"15";"14";15
+"MS";"F";17;"R";"GT3";"T";1;2;"other";"services";"course";"father";2;2;0;"no";"no";"no";"no";"no";"yes";"no";"no";3;2;2;1;2;3;0;"13";"13";13
+"MS";"M";18;"R";"GT3";"T";1;3;"at_home";"other";"course";"mother";2;2;0;"no";"yes";"yes";"no";"yes";"yes";"no";"no";3;3;4;2;4;3;0;"8";"10";9
+"MS";"M";18;"U";"LE3";"T";4;4;"teacher";"services";"other";"mother";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;2;2;2;2;5;0;"15";"16";16
+"MS";"F";17;"R";"GT3";"T";1;1;"other";"services";"reputation";"mother";3;1;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;2;1;1;2;1;0;"8";"8";9
+"MS";"F";18;"U";"GT3";"T";2;3;"at_home";"services";"course";"father";2;1;0;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";5;2;3;1;2;4;0;"10";"10";10
+"MS";"F";18;"R";"GT3";"T";4;4;"other";"teacher";"other";"father";3;2;0;"no";"yes";"no";"no";"no";"yes";"yes";"yes";3;2;2;4;2;5;0;"7";"5";0
+"MS";"M";18;"R";"LE3";"T";1;2;"at_home";"services";"other";"father";3;1;0;"no";"yes";"no";"yes";"yes";"no";"yes";"yes";4;3;3;2;3;3;3;"9";"10";10
+"MS";"F";17;"U";"GT3";"T";2;2;"other";"at_home";"home";"mother";1;3;0;"no";"no";"no";"yes";"yes";"yes";"no";"yes";3;4;3;1;1;3;8;"10";"11";12
+"MS";"F";17;"R";"GT3";"T";1;2;"other";"other";"course";"mother";1;1;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";3;5;5;1;3;1;4;"7";"8";9
+"MS";"F";18;"R";"LE3";"T";4;4;"other";"other";"reputation";"mother";2;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;4;4;1;1;1;0;"15";"17";17
+"MS";"F";18;"R";"GT3";"T";1;1;"other";"other";"home";"mother";4;3;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";4;3;2;1;2;4;4;"10";"11";12
+"MS";"F";19;"R";"GT3";"T";1;1;"at_home";"other";"course";"other";2;2;1;"no";"yes";"no";"no";"yes";"yes";"yes";"yes";4;3;3;1;1;3;4;"7";"8";9
+"MS";"F";18;"R";"LE3";"T";4;4;"teacher";"services";"course";"mother";1;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";5;4;3;3;4;2;1;"13";"14";14
+"MS";"F";18;"U";"GT3";"T";3;3;"other";"other";"home";"mother";1;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"yes";4;1;3;1;2;1;1;"16";"16";16
+"MS";"F";17;"R";"GT3";"T";3;1;"at_home";"other";"reputation";"mother";1;2;0;"no";"yes";"no";"yes";"no";"yes";"yes";"no";4;5;4;2;3;1;10;"8";"9";9
+"MS";"M";18;"U";"GT3";"T";4;4;"teacher";"teacher";"home";"father";1;2;0;"no";"no";"no";"yes";"no";"yes";"yes";"no";3;2;4;1;4;2;4;"17";"18";19
+"MS";"M";18;"R";"GT3";"T";2;1;"other";"other";"other";"mother";2;1;0;"no";"no";"no";"yes";"no";"yes";"yes";"yes";4;4;3;1;3;5;0;"7";"7";0
+"MS";"M";17;"U";"GT3";"T";2;3;"other";"services";"home";"father";2;2;0;"no";"no";"no";"yes";"yes";"yes";"yes";"no";4;4;3;1;1;3;4;"14";"15";16
+"MS";"M";19;"R";"GT3";"T";1;1;"other";"services";"other";"mother";2;1;1;"no";"no";"no";"no";"yes";"yes";"no";"no";4;3;2;1;3;5;0;"5";"8";0
+"MS";"M";18;"R";"GT3";"T";4;2;"other";"other";"home";"father";2;1;1;"no";"no";"yes";"no";"yes";"yes";"no";"no";5;4;3;4;3;3;0;"7";"7";0
+"MS";"F";18;"R";"GT3";"T";2;2;"at_home";"other";"other";"mother";2;3;0;"no";"no";"no";"no";"yes";"yes";"no";"no";5;3;3;1;3;4;0;"14";"17";15
+"MS";"F";17;"U";"GT3";"T";4;3;"teacher";"other";"other";"mother";2;2;0;"no";"no";"no";"no";"yes";"yes";"yes";"no";5;5;4;1;1;1;0;"6";"9";11
+"MS";"F";18;"R";"GT3";"T";4;4;"teacher";"at_home";"reputation";"mother";3;1;0;"no";"yes";"no";"yes";"yes";"yes";"yes";"yes";4;4;3;2;2;5;4;"7";"9";10
+"MS";"F";19;"R";"GT3";"T";2;3;"services";"other";"course";"mother";1;3;1;"no";"no";"no";"yes";"no";"yes";"yes";"no";5;4;2;1;2;5;4;"10";"11";10
+"MS";"F";18;"U";"LE3";"T";3;1;"teacher";"services";"course";"mother";1;2;0;"no";"yes";"no";"no";"yes";"yes";"yes";"no";4;3;4;1;1;1;4;"15";"15";16
+"MS";"F";18;"U";"GT3";"T";1;1;"other";"other";"course";"mother";2;2;0;"no";"no";"no";"yes";"yes";"yes";"no";"no";1;1;1;1;1;5;6;"11";"12";9
+"MS";"M";17;"U";"LE3";"T";3;1;"services";"services";"course";"mother";2;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";2;4;5;3;4;2;6;"10";"10";10
+"MS";"M";18;"R";"LE3";"T";3;2;"services";"other";"course";"mother";3;1;0;"no";"no";"no";"no";"no";"yes";"yes";"no";4;4;1;3;4;5;4;"10";"11";11</script>
+
+<script>
+/* ---------- data ---------- */
+const NUM = ["age","Medu","Fedu","traveltime","studytime","failures","famrel","freetime","goout","Dalc","Walc","health","absences","G1","G2","G3"];
+function loadEmbedded(elId, prefix){
+  const txt = document.getElementById(elId).textContent.trim();
+  return d3.dsvFormat(";").parse(txt, (d,i) => {
+    const r = {...d};
+    NUM.forEach(k => r[k] = +d[k]);
+    r.id = prefix + i;
+    r.outcome = r.G3 === 0 ? "none" : (r.G3 >= 10 ? "pass" : "fail");
+    return r;
+  });
+}
+const DATA = { mat: loadEmbedded("data-mat","m"), por: loadEmbedded("data-por","p") };
+
+/* ---------- factor definitions (plain-language labels for every code) ---------- */
+const yn = [["yes","Yes"],["no","No"]];
+const lvl5 = [[1,"Very low"],[2,"Low"],[3,"Medium"],[4,"High"],[5,"Very high"]];
+const edu = [[0,"None"],[1,"Primary (4th grade)"],[2,"5th–9th grade"],[3,"Secondary"],[4,"Higher education"]];
+const job = [["teacher","Teacher"],["health","Health care"],["services","Civil services"],["at_home","At home"],["other","Other"]];
+function F(id, label, cats, get){
+  return { id, label, cats: cats.map(([k,l]) => ({key:String(k), label:l})), get: get || (d => String(d[id])) };
+}
+const FACTORS = [
+  F("failures","Past class failures",[[0,"None"],[1,"1"],[2,"2"],[3,"3 or more"]]),
+  F("higher","Wants higher education",yn),
+  F("studytime","Weekly study time",[[1,"Under 2 h"],[2,"2–5 h"],[3,"5–10 h"],[4,"Over 10 h"]]),
+  F("Medu","Mother’s education",edu),
+  F("Fedu","Father’s education",edu),
+  F("Mjob","Mother’s job",job),
+  F("Fjob","Father’s job",job),
+  F("goout","Going out with friends",lvl5),
+  F("Dalc","Alcohol on weekdays",lvl5),
+  F("Walc","Alcohol at weekends",lvl5),
+  F("absences","School absences",[["0","None"],["1","1–5"],["2","6–10"],["3","11–20"],["4","Over 20"]],
+     d => String(d.absences===0?0:d.absences<=5?1:d.absences<=10?2:d.absences<=20?3:4)),
+  F("schoolsup","Extra school support",yn),
+  F("famsup","Family study support",yn),
+  F("paid","Paid extra classes",yn),
+  F("activities","Extracurricular activities",yn),
+  F("internet","Internet at home",yn),
+  F("romantic","In a relationship",yn),
+  F("freetime","Free time after school",lvl5),
+  F("health","Health",[[1,"Very bad"],[2,"Bad"],[3,"Fair"],[4,"Good"],[5,"Very good"]]),
+  F("famrel","Family relationships",[[1,"Very bad"],[2,"Bad"],[3,"Fair"],[4,"Good"],[5,"Excellent"]]),
+  F("traveltime","Travel time to school",[[1,"Under 15 min"],[2,"15–30 min"],[3,"30–60 min"],[4,"Over 1 h"]]),
+  F("address","Home area",[["U","Urban"],["R","Rural"]]),
+  F("age","Age",[["15","15"],["16","16"],["17","17"],["18","18"],["19","19 or older"]], d => String(Math.min(d.age,19))),
+  F("sex","Sex",[["F","Female"],["M","Male"]]),
+  F("school","School",[["GP","Gabriel Pereira"],["MS","Mousinho da Silveira"]]),
+  F("famsize","Family size",[["LE3","3 or fewer"],["GT3","More than 3"]]),
+  F("Pstatus","Parents",[["T","Living together"],["A","Living apart"]]),
+  F("guardian","Guardian",[["mother","Mother"],["father","Father"],["other","Other"]]),
+  F("reason","Why this school",[["home","Close to home"],["reputation","Reputation"],["course","Course offer"],["other","Other"]]),
+  F("nursery","Went to nursery school",yn),
+];
+const FBY = Object.fromEntries(FACTORS.map(f => [f.id, f]));
+const OUTCOME = F("outcome","Final result",[["pass","Passed"],["fail","Failed"],["none","No final grade"]], d => d.outcome);
+const OUT_KEYS = ["pass","fail","none"];
+const COLOR = {pass:"var(--pass)", fail:"var(--fail)", none:"var(--none)"};
+const MINN = 10;               // groups smaller than this are left out of the ranking
+const pct = d3.format(".0%");
+const catLabel = (f, key) => (f.cats.find(c => c.key === key) || {label:key}).label;
+const passRate = a => a.length ? d3.mean(a, d => d.G3 >= 10) : 0;
+
+/* ---------- state ---------- */
+const S = { subject:"mat", school:"all", sex:"all", zero:false, factor:"failures",
+            ps:["studytime","failures","higher"], sel:null, brush:null, pinned:null, hover:null, showAll:false };
+function rows(){
+  return DATA[S.subject].filter(d =>
+    (S.school==="all" || d.school===S.school) && (S.sex==="all" || d.sex===S.sex) && (S.zero || d.G3 > 0));
+}
+const isSel = d => !S.sel || S.sel.ids.has(d.id);
+function setSel(ids, label, keepBrush){
+  if (ids && S.sel && S.sel.label === label) ids = null;      // choosing the same thing again clears it
+  S.sel = ids && ids.size ? {ids, label} : null;
+  if (!keepBrush) S.brush = null;
+  renderAll();
+}
+
+/* ---------- tooltip ---------- */
+const tipEl = document.getElementById("tip");
+function tip(html, e){
+  tipEl.innerHTML = html; tipEl.style.opacity = 1;
+  const w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = e.clientY - h - 14;
+  tipEl.style.left = x + "px"; tipEl.style.top = y + "px";
+}
+function hideTip(){ tipEl.style.opacity = 0; }
+function keyActivate(fn){ return function(e, d){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); fn(e, d); } }; }
+
+/* ---------- status bar ---------- */
+function renderStatus(R){
+  const el = document.getElementById("status");
+  let html = `<span><strong>${R.length}</strong> students shown, ${pct(passRate(R))} passed</span>`;
+  if (S.sel){
+    const s = R.filter(isSel);
+    html += `<span class="chip">${S.sel.label}: ${s.length} students, ${s.length ? pct(passRate(s)) : "–"} passed
+             <button type="button" id="clear">Clear</button></span>`;
+  }
+  el.innerHTML = html;
+  const c = document.getElementById("clear");
+  if (c) c.onclick = () => setSel(null);
+  document.getElementById("key-none").style.display = S.zero ? "" : "none";
+}
+
+/* ---------- view 1: ranking of factors by grade gap ---------- */
+function computeRanking(R){
+  const out = [];
+  for (const f of FACTORS){
+    const g = d3.group(R, f.get);
+    const groups = f.cats.map(c => {
+      const a = g.get(c.key) || [];
+      return {...c, n:a.length, mean: a.length ? d3.mean(a, d => d.G3) : null, pass: passRate(a)};
+    }).filter(c => c.n > 0);
+    const ok = groups.filter(c => c.n >= MINN);
+    if (ok.length < 2) continue;
+    const lo = d3.least(ok, c => c.mean), hi = d3.greatest(ok, c => c.mean);
+    out.push({f, ok, lo, hi, gap: hi.mean - lo.mean});
+  }
+  return out.sort((a,b) => b.gap - a.gap);
+}
+function renderRanking(R){
+  const el = d3.select("#rank"); el.selectAll("*").remove();
+  const all = computeRanking(R);
+  const more = document.getElementById("rank-more");
+  if (!all.length){ el.append("p").attr("class","empty").text("Too few students match these filters to compare groups."); more.style.display="none"; return; }
+  more.style.display = all.length > 10 ? "" : "none";
+  more.textContent = S.showAll ? "Show the top 10 only" : `Show all ${all.length} factors`;
+  let list = S.showAll ? all : all.slice(0,10);
+  if (!list.some(r => r.f.id === S.factor)){ const cur = all.find(r => r.f.id === S.factor); if (cur) list = [...list, cur]; }
+
+  const W = Math.max(320, el.node().clientWidth), rowH = 30, top = 24;
+  const labelW = Math.min(205, Math.round(W*0.45)), right = 44;
+  const H = top + list.length*rowH + 4;
+  const means = list.flatMap(r => r.ok.map(c => c.mean));
+  const x = d3.scaleLinear().domain([Math.floor(d3.min(means)-0.3), Math.ceil(d3.max(means)+0.3)]).range([labelW+8, W-right]);
+  const svg = el.append("svg").attr("width",W).attr("height",H)
+    .attr("role","img").attr("aria-label","Factors ranked by the gap in average final grade between their groups");
+  svg.append("g").attr("class","axis").attr("transform",`translate(0,${top-4})`)
+    .call(d3.axisTop(x).ticks(Math.max(3, Math.floor((W-labelW-right)/55))).tickSize(-(H-top)))
+    .call(g => g.select(".domain").remove()).call(g => g.selectAll("line").attr("stroke-opacity",.7));
+  svg.append("text").attr("x",W-6).attr("y",top-10).attr("text-anchor","end").attr("class","muted").style("font-size","13.5px").text("Gap");
+
+  const choose = (e,d) => { S.factor = d.f.id; renderRanking(rows()); renderDetail(rows()); };
+  const row = svg.selectAll("g.row").data(list).join("g").attr("class","row click")
+    .attr("transform",(d,i) => `translate(0,${top+i*rowH})`)
+    .attr("tabindex",0).attr("role","button")
+    .attr("aria-label",d => `${d.f.label}: gap of ${d.gap.toFixed(1)} grade points. Show the spread of grades.`)
+    .on("click",choose).on("keydown",keyActivate(choose))
+    .on("mousemove",(e,d) => tip(`<strong>${d.f.label}</strong><br>` +
+        d.ok.slice().sort((a,b)=>b.mean-a.mean).map(c => `${c.label}: average ${c.mean.toFixed(1)}, ${c.n} students`).join("<br>"), e))
+    .on("mouseleave",hideTip);
+  row.append("rect").attr("class","hit").attr("x",0).attr("y",1).attr("width",W).attr("height",rowH-2).attr("rx",3)
+    .style("fill",d => d.f.id===S.factor ? "var(--hl)" : "transparent");
+  row.append("text").attr("x",8).attr("y",rowH/2).attr("dy","0.35em").text(d => d.f.label)
+    .style("font-weight",d => d.f.id===S.factor ? 700 : 400);
+  row.append("line").attr("x1",d => x(d.lo.mean)).attr("x2",d => x(d.hi.mean)).attr("y1",rowH/2).attr("y2",rowH/2)
+    .style("stroke","var(--ink)").style("stroke-width",2);
+  row.selectAll("circle").data(d => d.ok).join("circle")
+    .attr("cx",c => x(c.mean)).attr("cy",rowH/2).attr("r",c => Math.max(3, Math.min(8, Math.sqrt(c.n)*0.5)))
+    .style("fill","var(--surface)").style("stroke","var(--ink)").style("stroke-width",1.6);
+  row.append("text").attr("x",W-6).attr("y",rowH/2).attr("dy","0.35em").attr("text-anchor","end")
+    .style("font-variant-numeric","tabular-nums").text(d => d.gap.toFixed(1));
+}
+document.getElementById("rank-more").onclick = () => { S.showAll = !S.showAll; renderRanking(rows()); };
+
+/* ---------- view 2: unit chart, one dot per student ---------- */
+function renderDetail(R){
+  const f = FBY[S.factor];
+  document.getElementById("detail-title").textContent = `How are grades spread by ${f.label.toLowerCase()}?`;
+  const el = d3.select("#detail"); el.selectAll("*").remove();
+  if (!R.length){ el.append("p").attr("class","empty").text("No students match these filters."); return; }
+
+  const W = Math.max(420, el.node().clientWidth);
+  const labelW = Math.min(170, Math.round(W*0.3)), right = 8, top = 22, axisH = 46;
+  const x = d3.scaleBand().domain(d3.range(0,21)).range([labelW, W-right]).paddingInner(0.14);
+  const bw = x.bandwidth();
+  const g = d3.group(R, f.get);
+  const groups = f.cats.map(c => ({...c, items:(g.get(c.key)||[]).slice()
+      .sort((a,b) => d3.ascending(OUT_KEYS.indexOf(a.outcome), OUT_KEYS.indexOf(b.outcome)) || d3.ascending(a.id,b.id))}))
+    .filter(c => c.items.length);
+
+  // one dot size for the whole chart, chosen so the tallest stack stays readable
+  const maxCell = d3.max(groups, c => d3.max(d3.rollups(c.items, v => v.length, d => d.G3), r => r[1]));
+  let p = 3;
+  for (const cand of [9,8,7,6,5.5,5,4.5,4,3.5,3]){
+    const cols = Math.max(1, Math.floor(bw/cand));
+    if (Math.ceil(maxCell/cols)*cand <= 120){ p = cand; break; }
+  }
+  const cols = Math.max(1, Math.floor(bw/p));
+
+  let y = top;
+  groups.forEach(c => {
+    const cells = d3.group(c.items, d => d.G3);
+    const stack = d3.max(cells.values(), v => Math.ceil(v.length/cols));
+    c.h = Math.max(stack*p, 34);
+    c.top = y; c.base = y + c.h; y += c.h + 22;
+    c.median = d3.median(c.items, d => d.G3);
+    c.dots = [];
+    cells.forEach((arr, grade) => arr.forEach((d,k) => {
+      const col = k % cols, rw = Math.floor(k/cols);
+      c.dots.push({d, cx: x(grade) + (bw - cols*p)/2 + col*p + p/2, cy: c.base - rw*p - p/2});
+    }));
+  });
+  const H = y - 22 + axisH;
+  const svg = el.append("svg").attr("width",W).attr("height",H)
+    .attr("role","img").attr("aria-label",`Final grades of each student grouped by ${f.label}`);
+
+  const passX = x(10) - (x.step()-bw)/2;
+  svg.append("line").attr("x1",passX).attr("x2",passX).attr("y1",top-8).attr("y2",H-axisH+6)
+    .style("stroke","var(--ink)").style("stroke-dasharray","5 3").style("stroke-width",2);
+  svg.append("text").attr("x",passX+5).attr("y",top-8).attr("dy","0.3em").style("font-size","13.5px").style("font-weight",700).text("Pass mark");
+
+  const sel = (e,c) => setSel(new Set(c.items.map(d => d.id)), `${f.label}: ${c.label}`);
+  const row = svg.selectAll("g.grp").data(groups).join("g").attr("class","grp");
+  row.append("line").attr("x1",labelW).attr("x2",W-right).attr("y1",c => c.base+0.5).attr("y2",c => c.base+0.5).style("stroke","var(--rule)");
+  const lab = row.append("g").attr("class","click").attr("tabindex",0).attr("role","button")
+    .attr("aria-label",c => `Select students: ${c.label}`)
+    .on("click",sel).on("keydown",keyActivate(sel));
+  lab.append("rect").attr("class","hit").attr("x",0).attr("y",c => c.base-38).attr("width",labelW-10).attr("height",40).attr("rx",3)
+    .style("fill",c => S.sel && S.sel.label === `${f.label}: ${c.label}` ? "var(--hl)" : "transparent");
+  lab.append("text").attr("x",6).attr("y",c => c.base-20).style("font-weight",700).text(c => c.label);
+  lab.append("text").attr("x",6).attr("y",c => c.base-4).attr("class","muted").style("font-size","13.5px")
+    .text(c => `${c.items.length} students, ${pct(passRate(c.items))} passed`);
+  row.append("path").attr("d",c => {const mx = x(Math.round(c.median))+bw/2, b = c.base+2; return `M${mx},${b} l-5,8 h10 z`;})
+    .style("fill","var(--ink)");
+
+  row.selectAll("circle").data(c => c.dots).join("circle")
+    .attr("class","click").attr("cx",o => o.cx).attr("cy",o => o.cy).attr("r",p*0.42)
+    .style("fill",o => COLOR[o.d.outcome]).style("opacity",o => isSel(o.d) ? 1 : 0.3)
+    .style("stroke",o => S.pinned && S.pinned.id === o.d.id ? "var(--ink)" : "none").style("stroke-width",2)
+    .on("mousemove",(e,o) => { S.hover = o.d; renderCard(); tip(studentLine(o.d), e); })
+    .on("mouseleave",() => { S.hover = null; renderCard(); hideTip(); })
+    .on("click",(e,o) => { S.pinned = S.pinned && S.pinned.id === o.d.id ? null : o.d; renderDetail(rows()); renderJourney(rows()); renderCard(); });
+
+  svg.append("g").attr("class","axis").attr("transform",`translate(0,${H-axisH+12})`)
+    .call(d3.axisBottom(x).tickValues([0,5,10,15,20]).tickSizeOuter(0)).call(g => g.select(".domain").remove());
+  svg.append("text").attr("x",(labelW+W)/2).attr("y",H-4).attr("text-anchor","middle").attr("class","muted").style("font-size","13.5px").text("Final grade (0–20)");
+}
+function studentLine(d){
+  return `Final grade <strong>${d.G3}</strong> (term 1: ${d.G1}, term 2: ${d.G2})<br>` +
+    `${d.sex==="F"?"Female":"Male"}, ${d.age}, studies ${catLabel(FBY.studytime,String(d.studytime)).toLowerCase()} a week<br>Click to keep this student in the card`;
+}
+
+/* ---------- view 3: parallel sets ---------- */
+function renderPickers(){
+  const el = d3.select("#pickers"); el.selectAll("*").remove();
+  S.ps.forEach((id,i) => {
+    const l = el.append("label").attr("class","ctl").text(i===0 ? "First" : i===1 ? "Then" : "Then");
+    const s = l.append("select").attr("aria-label",`Factor ${i+1}`).on("change",function(){
+      const v = this.value, j = S.ps.indexOf(v);
+      if (j > -1) S.ps[j] = S.ps[i];            // swap instead of showing the same factor twice
+      S.ps[i] = v; renderPickers(); renderPS(rows());
+    });
+    s.selectAll("option").data(FACTORS).join("option").attr("value",f => f.id).text(f => f.label).property("selected",f => f.id===id);
+  });
+  el.append("span").attr("class","ctl").text("then Final result");
+}
+function renderPS(R){
+  const el = d3.select("#psets"); el.selectAll("*").remove();
+  if (!R.length){ el.append("p").attr("class","empty").text("No students match these filters."); return; }
+  const dims = [...S.ps.map(id => FBY[id]), OUTCOME];
+  const W = Math.max(620, el.node().clientWidth), H = 400, mt = 34, mb = 8, ml = 4, mr = 4, bwid = 12, gap = 7;
+  const innerH = H - mt - mb, N = R.length;
+  const xs = dims.map((d,i) => ml + i*((W-ml-mr-bwid)/(dims.length-1)));
+
+  const present = dims.map(f => { const g = d3.group(R, f.get); return f.cats.filter(c => g.has(c.key)).map(c => ({...c, items:g.get(c.key)})); });
+  const maxCats = d3.max(present, p => p.length);
+  const k = (innerH - gap*(maxCats-1)) / N;
+  const blocks = present.map((cats,i) => {
+    const total = N*k + gap*(cats.length-1);
+    let y = mt + (innerH - total)/2;
+    const m = new Map();
+    cats.forEach(c => { m.set(c.key, {...c, y0:y, h:c.items.length*k, dim:i}); y += c.items.length*k + gap; });
+    return m;
+  });
+
+  // ribbons between neighbouring axes, split by final result so colour is consistent everywhere
+  const ribbons = [];
+  for (let i = 0; i < dims.length-1; i++){
+    const A = dims[i], B = dims[i+1];
+    const cnt = d3.group(R, A.get, B.get, d => d.outcome);
+    const rib = new Map();
+    const outOff = new Map([...blocks[i]].map(([key,b]) => [key,b.y0]));
+    const inOff  = new Map([...blocks[i+1]].map(([key,b]) => [key,b.y0]));
+    for (const a of present[i]) for (const b of present[i+1]) for (const o of OUT_KEYS){
+      const items = cnt.get(a.key)?.get(b.key)?.get(o); if (!items) continue;
+      const r = {i, a:a.key, b:b.key, o, items, h:items.length*k, ya:outOff.get(a.key)};
+      outOff.set(a.key, r.ya + r.h); rib.set(`${a.key}|${b.key}|${o}`, r); ribbons.push(r);
+    }
+    for (const b of present[i+1]) for (const a of present[i]) for (const o of OUT_KEYS){
+      const r = rib.get(`${a.key}|${b.key}|${o}`); if (!r) continue;
+      r.yb = inOff.get(b.key); inOff.set(b.key, r.yb + r.h);
+    }
+  }
+  const svg = el.append("svg").attr("width",W).attr("height",H)
+    .attr("role","img").attr("aria-label",`Parallel sets: ${dims.map(d => d.label).join(", then ")}`);
+
+  svg.selectAll("text.dim").data(dims).join("text").attr("class","dim")
+    .attr("x",(d,i) => i===dims.length-1 ? xs[i]+bwid : xs[i]).attr("y",14)
+    .attr("text-anchor",(d,i) => i===dims.length-1 ? "end" : "start").style("font-weight",700).text(d => d.label);
+
+  const path = r => { const x1 = xs[r.i]+bwid, x2 = xs[r.i+1], xm = (x1+x2)/2;
+    return `M${x1},${r.ya}C${xm},${r.ya} ${xm},${r.yb} ${x2},${r.yb}L${x2},${r.yb+r.h}C${xm},${r.yb+r.h} ${xm},${r.ya+r.h} ${x1},${r.ya+r.h}Z`; };
+  const pairItems = r => ribbons.filter(q => q.i===r.i && q.a===r.a && q.b===r.b).flatMap(q => q.items);
+  const baseOp = r => S.sel ? 0.3 : 0.8;
+  const ribSel = svg.append("g").selectAll("path").data(ribbons).join("path").attr("class","click")
+    .attr("d",path).style("fill",r => COLOR[r.o]).style("opacity",baseOp)
+    .on("mousemove",(e,r) => {
+      ribSel.style("opacity",q => q.i===r.i && q.a===r.a && q.b===r.b ? 0.95 : baseOp(q)*0.6);
+      const it = pairItems(r), A = dims[r.i], B = dims[r.i+1];
+      const fails = it.filter(d => d.outcome==="fail").length;
+      tip(`${A.label}: <strong>${catLabel(A,r.a)}</strong><br>${B.label}: <strong>${catLabel(B,r.b)}</strong><br>${it.length} students, ${pct(passRate(it))} passed, ${fails} failed`, e);
+    })
+    .on("mouseleave",() => { ribSel.style("opacity",baseOp); hideTip(); })
+    .on("click",(e,r) => { const A = dims[r.i], B = dims[r.i+1];
+      setSel(new Set(pairItems(r).map(d => d.id)), `${catLabel(A,r.a)} and ${B.label.toLowerCase()}: ${catLabel(B,r.b)}`); });
+
+  // linked highlight: the selected students fill the top part of each band
+  if (S.sel){
+    svg.append("g").style("pointer-events","none").selectAll("path")
+      .data(ribbons.map(r => ({...r, h: r.items.filter(isSel).length*k})).filter(r => r.h > 0)).join("path")
+      .attr("d",path).style("fill",r => COLOR[r.o]).style("opacity",0.95);
+  }
+
+  const allBlocks = blocks.flatMap(m => [...m.values()]);
+  const pickBlock = (e,b) => setSel(new Set(b.items.map(d => d.id)), `${dims[b.dim].label}: ${b.label}`);
+  const bg = svg.append("g").selectAll("g").data(allBlocks).join("g").attr("class","click")
+    .attr("tabindex",0).attr("role","button").attr("aria-label",b => `Select students: ${dims[b.dim].label}, ${b.label}`)
+    .on("click",pickBlock).on("keydown",keyActivate(pickBlock))
+    .on("mousemove",(e,b) => tip(`${dims[b.dim].label}: <strong>${b.label}</strong><br>${b.items.length} students, ${pct(passRate(b.items))} passed`, e))
+    .on("mouseleave",hideTip);
+  bg.append("rect").attr("class","hit").attr("x",b => xs[b.dim]).attr("y",b => b.y0).attr("width",bwid).attr("height",b => Math.max(1.5,b.h))
+    .style("fill",b => b.dim===dims.length-1 ? COLOR[b.key] : "var(--ink)");
+  const last = dims.length-1;
+  bg.append("text")
+    .attr("x",b => b.dim===last ? xs[b.dim]-6 : xs[b.dim]+bwid+6)
+    .attr("y",b => b.y0 + b.h/2).attr("dy","0.35em")
+    .attr("text-anchor",b => b.dim===last ? "end" : "start")
+    .style("font-size","13.5px").style("paint-order","stroke").style("stroke","var(--surface)").style("stroke-width",3.5).style("stroke-linejoin","round")
+    .text(b => b.h >= 9 ? `${b.label} (${b.items.length})` : "");
+}
+
+/* ---------- view 4: grade journey with brushing ---------- */
+function renderJourney(R){
+  const el = d3.select("#journey"); el.selectAll("*").remove();
+  if (!R.length){ el.append("p").attr("class","empty").text("No students match these filters."); return; }
+  const W = Math.max(360, el.node().clientWidth), H = 360, ml = 34, mr = 34, mt = 26, mb = 14;
+  const cols = [{k:"G1",l:"Term 1"},{k:"G2",l:"Term 2"},{k:"G3",l:"Final"}];
+  const x = d3.scalePoint().domain(cols.map(c => c.k)).range([ml, W-mr]);
+  const y = d3.scaleLinear().domain([0,20]).range([H-mb, mt]);
+  const svg = el.append("svg").attr("width",W).attr("height",H)
+    .attr("role","img").attr("aria-label","Grade paths from term 1 to term 2 to the final grade");
+
+  svg.append("line").attr("x1",ml).attr("x2",W-mr).attr("y1",y(9.5)).attr("y2",y(9.5))
+    .style("stroke","var(--ink)").style("stroke-dasharray","5 3").style("stroke-width",2);
+  svg.append("text").attr("x",W-mr+4).attr("y",y(9.5)).attr("dy","0.35em").style("font-size","13.5px").style("font-weight",700).text("Pass");
+
+  const line = d => `M${x("G1")},${y(d.G1)}L${x("G2")},${y(d.G2)}L${x("G3")},${y(d.G3)}`;
+  const agg = list => d3.rollups(list, v => v, d => `${d.G1}-${d.G2}-${d.G3}`).map(([key,items]) => ({key, items, d:items[0]}));
+  const draw = (list, colourFn, op) => svg.append("g").selectAll("path").data(agg(list)).join("path")
+    .attr("d",p => line(p.d)).style("fill","none").style("stroke",colourFn).style("stroke-opacity",op)
+    .style("stroke-width",p => 0.8 + Math.sqrt(p.items.length)*0.9).style("stroke-linecap","round")
+    .on("mousemove",(e,p) => tip(`Term 1: ${p.d.G1}, term 2: ${p.d.G2}, final: ${p.d.G3}<br>${p.items.length} student${p.items.length>1?"s":""}`, e))
+    .on("mouseleave",hideTip);
+  if (S.sel){
+    draw(R.filter(d => !isSel(d)), () => "var(--none)", 0.25);
+    draw(R.filter(isSel), p => COLOR[p.d.outcome], 0.8);
+  } else draw(R, p => COLOR[p.d.outcome], 0.5);
+  if (S.pinned && R.some(d => d.id === S.pinned.id))
+    svg.append("path").attr("d",line(S.pinned)).style("fill","none").style("stroke","var(--ink)").style("stroke-width",3).style("pointer-events","none");
+
+  cols.forEach(c => {
+    svg.append("g").attr("class","axis").attr("transform",`translate(${x(c.k)},0)`)
+      .call(d3.axisLeft(y).tickValues([0,5,10,15,20]).tickSize(4));
+    svg.append("text").attr("x",x(c.k)).attr("y",12).attr("text-anchor","middle").style("font-weight",700).text(c.l);
+    const brush = d3.brushY().extent([[x(c.k)-14, mt-4],[x(c.k)+14, H-mb+4]])
+      .on("end", e => {
+        if (!e.sourceEvent) return;                         // ignore programmatic moves
+        if (!e.selection){ if (S.brush && S.brush.k === c.k) setSel(null); return; }
+        const hi = Math.floor(y.invert(e.selection[0])), lo = Math.ceil(y.invert(e.selection[1]));
+        if (lo > hi){ setSel(null); return; }
+        const ids = new Set(rows().filter(d => d[c.k] >= lo && d[c.k] <= hi).map(d => d.id));
+        S.brush = {k:c.k, lo, hi};
+        S.sel = null;                                       // a new brush replaces any selection
+        setSel(ids, `${c.l} grade ${lo}${lo===hi ? "" : "–"+hi}`, true);
+      });
+    const gb = svg.append("g").attr("class","brush").call(brush);
+    gb.select(".selection").style("fill","var(--ink)").style("fill-opacity",0.2).style("stroke","var(--ink)").style("stroke-width",1.5);
+    if (S.brush && S.brush.k === c.k) gb.call(brush.move, [y(S.brush.hi + 0.4), y(S.brush.lo - 0.4)]);
+  });
+}
+
+/* ---------- student card (details on demand) ---------- */
+function renderCard(){
+  const el = document.getElementById("card");
+  const d = S.hover || S.pinned;
+  if (!d){
+    el.innerHTML = `<h2>One student</h2><p class="hint">Point at a dot in the grade spread to see that student here. Click a dot to keep them, and their path is drawn in the term chart.</p>`;
+    return;
+  }
+  const L = (id) => catLabel(FBY[id], FBY[id].get(d));
+  const out = {pass:"Passed", fail:"Failed", none:"No final grade"}[d.outcome];
+  el.innerHTML = `<h2>One student${S.pinned && S.pinned.id===d.id ? " (kept)" : ""}</h2>
+    <p class="who">${d.sex==="F"?"Female":"Male"}, ${d.age}, ${L("school")}, ${L("address").toLowerCase()} area. ${out}.</p>
+    <div class="grades">
+      <div><b>${d.G1}</b><small>Term 1</small></div>
+      <div><b>${d.G2}</b><small>Term 2</small></div>
+      <div><b style="color:${COLOR[d.outcome]}">${d.G3}</b><small>Final</small></div>
+    </div>
+    <dl class="facts">
+      ${["studytime","failures","higher","absences","Medu","Fedu","goout","Walc","internet","famsup","paid"]
+        .map(id => `<dt>${FBY[id].label}</dt><dd>${L(id)}${id==="absences" ? ` (${d.absences})` : ""}</dd>`).join("")}
+    </dl>
+    ${S.pinned && S.pinned.id===d.id ? `<p><button type="button" class="linkbtn" id="unpin">Let this student go</button></p>` : ""}`;
+  const u = document.getElementById("unpin");
+  if (u) u.onclick = () => { S.pinned = null; renderAll(); };
+}
+
+/* ---------- wiring ---------- */
+function renderAll(){
+  const R = rows();
+  renderStatus(R); renderRanking(R); renderDetail(R); renderPS(R); renderJourney(R); renderCard();
+}
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
+  S.subject = b.dataset.subj; S.sel = null; S.brush = null; S.pinned = null;
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderAll();
+});
+document.getElementById("f-school").onchange = e => { S.school = e.target.value; renderAll(); };
+document.getElementById("f-sex").onchange = e => { S.sex = e.target.value; renderAll(); };
+document.getElementById("f-zero").onchange = e => { S.zero = e.target.checked; renderAll(); };
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
+renderPickers();
+renderAll();
+</script>
+</body>
+</html>
