@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>What goes with a good grade?</title>
+<title>Exploring the factors associated with passing the final grade</title>
 <!--
   Student grades explorer — Information Visualisation prototype (iteration 3)
   Authors: Folashade Ogunajo and Vanessa Ogoru — DETI, University of Aveiro, 2026/2027
@@ -42,12 +42,19 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 70px)}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.5 "Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:1240px;margin:0 auto;padding:0 20px}
-.intro{padding:44px 0 22px}
-h1{font-size:clamp(2rem,4.5vw,3rem);line-height:1.08;margin:0 0 14px;letter-spacing:-0.015em}
-.lede{max-width:64ch;margin:0;color:var(--muted);font-size:1.1rem}
-.byline{margin:0 0 14px;font-size:1.05rem}
-.byline strong{font-weight:700}
-.key{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:16px;font-size:.95rem}
+.intro{padding-top:44px;padding-bottom:22px;text-align:center}
+.credits{margin:0 0 18px;color:var(--muted);font-size:1.02rem}
+.credits p{margin:0}
+.credits .names{color:var(--ink);font-weight:700;font-size:1.15rem;margin-bottom:2px}
+.about{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;margin:26px 0 6px;text-align:left}
+@media (max-width:860px){.about{grid-template-columns:1fr}}
+.about ol,.about ul{margin:0;padding-left:1.3em}
+.about li{margin:0 0 8px}
+.about a{color:var(--ink)}
+.muted-t{color:var(--muted)}
+h1{font-size:clamp(1.9rem,4vw,2.7rem);line-height:1.12;margin:0 auto 14px;max-width:24ch;letter-spacing:-0.015em;text-wrap:balance}
+.lede{max-width:66ch;margin:0 auto;color:var(--muted);font-size:1.1rem}
+.key{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin-top:18px;font-size:.95rem}
 .key span{display:inline-flex;align-items:center;gap:7px}
 .sw{width:14px;height:14px;border-radius:50%;display:inline-block}
 
@@ -100,16 +107,45 @@ dl.facts dd{margin:0}
   font-size:.88rem;line-height:1.4;max-width:290px;opacity:0;z-index:50}
 footer{color:var(--muted);font-size:.93rem;padding:10px 0 50px}
 footer h2{color:var(--ink);font-size:1.1rem;margin:0 0 6px}
-footer p{max-width:72ch;margin:0 0 10px}
+.credits.foot p{max-width:none;text-align:center}
+.credits.foot{text-align:center;margin:30px 0 0;padding-top:20px;border-top:1px solid var(--rule)}
+footer p{max-width:none;margin:0 0 10px;text-align:justify;hyphens:auto}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
 <header class="wrap intro">
-  <h1>What goes with a good grade?</h1>
-  <p class="byline">By <strong>Folashade Ogunajo</strong> and <strong>Vanessa Ogoru</strong>, Information Visualisation 2026/2027, DETI, University of Aveiro</p>
-  <p class="lede">Final grades of secondary-school students at two schools in Portugal, next to their study habits, family and social life. Grades run from 0 to 20, and 10 is a pass. Start with the ranking, choose a factor to look closer, then choose any bar, square or point to focus the other charts on those students.</p>
+  <h1>Exploring the factors associated with passing the final grade</h1>
+  <div class="credits">
+    <p class="names">Folashade Ogunajo and Vanessa Ogoru</p>
+    <p>Information Visualisation, 2026/2027</p>
+    <p>Department of Electronics, Telecommunications and Informatics (DETI), University of Aveiro</p>
+  </div>
+  <p class="lede">This dashboard explores how the study habits, family background and social life of secondary-school students in Portugal relate to their final grades. Grades go from 0 to 20, and students need at least 10 to pass.</p>
+
+  <div class="about">
+    <section class="panel">
+      <h2>Questions you can answer here</h2>
+      <ol class="questions">
+        <li><a href="#chart-1">Which factors are most associated with passing?</a></li>
+        <li><a href="#chart-2">How does the pass rate change from one group to another, for example between students who study more and less?</a></li>
+        <li><a href="#chart-3">Which combinations of circumstances have the lowest pass rates?</a></li>
+        <li><a href="#chart-4">Can a student’s grade in term 1 or term 2 warn us early that they may fail?</a></li>
+        <li>Are the patterns the same in maths and Portuguese, in both schools, and for girls and boys?</li>
+      </ol>
+    </section>
+    <section class="panel">
+      <h2>Who it’s for</h2>
+      <ul class="users">
+        <li><strong>Teachers and class directors</strong> can learn the early warning signs of failing, such as a low term 1 grade, past failures or many absences, and look out for them in their own classes so support can start in time.</li>
+        <li><strong>School counsellors and psychologists</strong> can see which circumstances often go with failing, to guide conversations with students and families.</li>
+        <li><strong>School management</strong> can decide where support programmes and resources are likely to help most.</li>
+        <li><strong>Students and parents</strong> can see which habits tend to go with passing.</li>
+      </ul>
+    </section>
+  </div>
+
   <div class="key" aria-label="Colour key">
     <span><i class="sw" style="background:var(--pass)"></i>Passed (10 or more)</span>
     <span><i class="sw" style="background:var(--fail)"></i>Failed (under 10)</span>
@@ -136,37 +172,37 @@ footer p{max-width:72ch;margin:0 0 10px}
 
 <main class="wrap">
   <div class="grid g-a">
-    <section class="panel">
-      <h2>Which circumstances make the biggest difference?</h2>
-      <p class="hint">Each bar is one factor. The longer the bar, the bigger the difference in pass rate between the factor’s best and worst group, in percentage points (pts). Both pass rates are written under each name. Choose a factor to look closer.</p>
+    <section class="panel" id="chart-1">
+      <h2>Factors associated with passing the final grade</h2>
+      <p class="hint">Each bar shows how much the pass rate differs between the best and the worst group of a factor, in percentage points (pts).</p>
       <div class="chart" id="rank"></div>
       <button type="button" class="linkbtn" id="rank-more"></button>
     </section>
 
-    <section class="panel">
-      <h2 id="detail-title">Who passes in each group?</h2>
-      <p class="hint">Each bar is one group of students: blue is the share who passed, orange the share who failed. Choose a bar to show only those students in the other charts.</p>
+    <section class="panel" id="chart-2">
+      <h2 id="detail-title">Pass rate by group</h2>
+      <p class="hint">Each bar is one group of students. The blue part shows how many passed and the orange part how many failed.</p>
       <div class="chart" id="detail"></div>
     </section>
   </div>
 
   <div class="grid g-d">
-    <section class="panel">
-      <h2>Which combinations do worst?</h2>
-      <p class="hint">Each square is the pass rate of the students who share both circumstances. Orange squares pass less, blue squares pass more. Choose a square to show only those students in the other charts.</p>
+    <section class="panel" id="chart-3">
+      <h2>Pass rate for two factors combined</h2>
+      <p class="hint">Choose two factors. Each square shows the pass rate of the students who share both, with the number of students below it. The more orange the square, the fewer students passed.</p>
       <div class="pickers" id="heat-pickers"></div>
       <div class="chart" id="heat"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="chart-4">
       <div class="phead">
-        <h2>Do early grades predict the final result?</h2>
+        <h2>Early grades and passing the final grade</h2>
         <div class="seg" role="group" aria-label="Term">
           <button type="button" data-term="G1" aria-pressed="true">Term 1</button>
           <button type="button" data-term="G2" aria-pressed="false">Term 2</button>
         </div>
       </div>
-      <p class="hint">Each point shows how many students with that term grade went on to pass the final. Choose a point to show only those students in the other charts.</p>
+      <p class="hint">Each point shows the share of students with that term grade who went on to pass the final grade. Switch between term 1 and term 2 with the buttons.</p>
       <div class="chart" id="trend"></div>
     </section>
   </div>
@@ -174,11 +210,14 @@ footer p{max-width:72ch;margin:0 0 10px}
 
 <footer class="wrap">
   <h2>About the data</h2>
-  <p>Survey and school records of 395 maths students and 649 Portuguese-language students from Gabriel Pereira and Mousinho da Silveira secondary schools, school year 2005–2006. Collected by P. Cortez and A. Silva (2008) and published in the UCI Machine Learning Repository as “Student Performance”.</p>
-  <p>Students with a final grade of 0 almost all had passing or near-passing grades during the year, so they most likely did not sit the final exam. They are hidden by default because they would drag group averages down. The charts show associations, not causes: a factor that goes with lower grades does not by itself make grades lower.</p>
+  <p>The data comes from a survey and the school records of 395 maths students and 649 Portuguese-language students at two secondary schools in Portugal, Gabriel Pereira and Mousinho da Silveira, in the 2005–2006 school year. It was collected by P. Cortez and A. Silva (2008) and is published in the UCI Machine Learning Repository as “Student Performance”.</p>
+  <p>Some students have a final grade of 0 even though their grades during the year were close to or above the pass mark. They most likely didn’t sit the final exam, so we hide them by default to stop them pulling the pass rates down.</p>
   <p>Built with d3.js v7.</p>
-  <h2>Project team</h2>
-  <p>Folashade Ogunajo and Vanessa Ogoru, Information Visualisation 2026/2027, Departamento de Eletrónica, Telecomunicações e Informática, University of Aveiro.</p>
+  <div class="credits foot">
+    <p class="names">Folashade Ogunajo and Vanessa Ogoru</p>
+    <p>Information Visualisation, 2026/2027</p>
+    <p>Department of Electronics, Telecommunications and Informatics (DETI), University of Aveiro</p>
+  </div>
 </footer>
 
 <div class="tip" id="tip" role="tooltip"></div>
@@ -1329,10 +1368,10 @@ function keyActivate(fn){ return function(e, d){ if (e.key==="Enter" || e.key===
 /* ---------- status bar ---------- */
 function renderStatus(R){
   const el = document.getElementById("status");
-  let html = `<span><strong>${R.length}</strong> students shown, ${pct(passRate(R))} passed</span>`;
+  let html = `<span>Showing <strong>${R.length}</strong> students, ${pct(passRate(R))} passed</span>`;
   if (S.sel){
     const s = R.filter(d => S.sel.ids.has(d.id));
-    html += `<span class="chip">Only ${S.sel.label}: ${s.length} students, ${s.length ? pct(passRate(s)) : "–"} passed
+    html += `<span class="chip">Focus: ${S.sel.label} (${s.length} students, ${s.length ? pct(passRate(s)) : "–"} passed)
              <button type="button" id="clear">Clear</button></span>`;
   }
   el.innerHTML = html;
@@ -1398,7 +1437,7 @@ document.getElementById("rank-more").onclick = () => { S.showAll = !S.showAll; r
 /* ---------- view 2: pass rate by group (100% stacked bar chart) ---------- */
 function renderDetail(R){
   const f = FBY[S.factor];
-  document.getElementById("detail-title").textContent = `Who passes, by ${f.label.toLowerCase()}?`;
+  document.getElementById("detail-title").textContent = `Pass rate by ${f.label.toLowerCase()}`;
   const el = d3.select("#detail"); el.selectAll("*").remove();
   if (!R.length){ el.append("p").attr("class","empty").text("No students match these filters."); return; }
   const W = Math.max(340, el.node().clientWidth);
@@ -1420,7 +1459,7 @@ function renderDetail(R){
   const row = svg.selectAll("g.grp").data(groups).join("g").attr("class","grp click")
     .attr("transform",(c,i) => `translate(0,${i*rowH})`)
     .attr("tabindex",0).attr("role","button")
-    .attr("aria-label",c => `${c.label}: ${pct(passRate(c.items))} passed of ${c.items.length} students. Show only these students in the other charts.`)
+    .attr("aria-label",c => `${c.label}: ${pct(passRate(c.items))} of ${c.items.length} students passed. Focus the other charts on this group.`)
     .on("click",pick).on("keydown",keyActivate(pick))
     .on("mousemove",(e,c) => tip(`<strong>${c.label}</strong>: ${c.items.length} students<br>` +
         c.segs.map(s => `${{pass:"Passed",fail:"Failed",none:"No final grade"}[s.o]}: ${s.n} (${pct(s.share)})`).join("<br>"), e))
@@ -1497,7 +1536,7 @@ function renderHeat(R){
   const cells = [];
   ra.forEach((a,i) => cb.forEach((b,j) => {
     const items = g.get(a.key)?.get(b.key) || [];
-    cells.push({a, b, i, j, items, rate: passRate(items), selLabel:`${A.label.toLowerCase()} ${a.label.toLowerCase()} and ${B.label.toLowerCase()} ${b.label.toLowerCase()}`});
+    cells.push({a, b, i, j, items, rate: passRate(items), selLabel:`${A.label}: ${a.label}, ${B.label.toLowerCase()}: ${b.label}`});
   }));
   const pick = (e,c) => { if (c.items.length) setSel(new Set(rows().filter(d => A.get(d) === c.a.key && B.get(d) === c.b.key).map(d => d.id)), c.selLabel, "heat"); };
   const cell = svg.selectAll("g.cell").data(cells).join("g").attr("class",c => c.items.length ? "cell click" : "cell")
@@ -1562,7 +1601,7 @@ function renderTrend(R){
 
   svg.append("path").datum(pts).attr("d",d3.line().x(p => x(p.grade)).y(p => y(p.rate)))
     .style("fill","none").style("stroke","var(--ink)").style("stroke-width",2.5);
-  const lab = p => `${termName} grade ${p.grade}`;
+  const lab = p => `${termName} grade: ${p.grade}`;
   const pick = (e,p) => setSel(new Set(rows().filter(d => d[term] === p.grade).map(d => d.id)), lab(p), "trend");
   svg.selectAll("circle").data(pts).join("circle").attr("class","click")
     .attr("cx",p => x(p.grade)).attr("cy",p => y(p.rate)).attr("r",7)
@@ -1571,7 +1610,7 @@ function renderTrend(R){
     .style("fill",p => p.rate >= 0.5 ? "var(--pass)" : "var(--fail)")
     .style("stroke",p => S.sel && S.sel.label===lab(p) ? "var(--ink)" : "var(--surface)").style("stroke-width",p => S.sel && S.sel.label===lab(p) ? 3.5 : 2)
     .on("click",pick).on("keydown",keyActivate(pick))
-    .on("mousemove",(e,p) => tip(`Students with a ${termName.toLowerCase()} grade of <strong>${p.grade}</strong>:<br>${pct(p.rate)} passed the final (${p.items.length} students)`, e))
+    .on("mousemove",(e,p) => tip(`Of the ${p.items.length} students with a ${termName.toLowerCase()} grade of <strong>${p.grade}</strong>,<br>${pct(p.rate)} passed the final grade.`, e))
     .on("mouseleave",hideTip);
 }
 
